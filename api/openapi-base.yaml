@@ -1,0 +1,296 @@
+openapi: 3.0.3
+info:
+  title: Training Tracker API (Stub)
+  version: 0.1.0
+paths:
+  /employees/{id}/dashboard:
+    get:
+      summary: Get employee dashboard
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDashboard'
+  /employees/validate-email:
+    post:
+      summary: Validate email domain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+              required: [email]
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid: { type: boolean }
+                  approvedDomains:
+                    type: array
+                    items: { type: string }
+  /courses:
+    get:
+      summary: List courses
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: Paged courses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePage'
+  /api/courses:
+    get:
+      summary: List courses (GUID ids)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePageV2'
+    
+  /api/courses/{id}:
+    get:
+      summary: Get course detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/users:
+    get:
+      summary: List users
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+  /api/users/{id}:
+    get:
+      summary: Get user detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/enrollments:
+    get:
+      summary: List enrollments
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentPage'
+  /api/enrollments/{id}:
+    get:
+      summary: Get enrollment detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentDetail'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    EmployeeDashboard:
+      type: object
+      properties:
+        employeeId: { type: integer }
+        profile:
+          type: object
+          properties:
+            firstName: { type: string }
+            lastName: { type: string }
+            email: { type: string }
+        certifications:
+          type: array
+          items:
+            type: object
+            properties:
+              courseId: { type: integer }
+              status: { type: string }
+              expirationDate: { type: string, format: date }
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              enrollmentId: { type: integer }
+              courseId: { type: integer }
+              completionDate: { type: string, format: date }
+    CoursePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+        totalPages: { type: integer }
+    Course:
+      type: object
+      properties:
+        courseId: { type: integer }
+        courseName: { type: string }
+        isRequired: { type: boolean }
+        validityMonths: { type: integer }
+    CourseSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        isRequired: { type: boolean }
+        isActive: { type: boolean }
+    CourseDetail:
+      allOf:
+        - $ref: '#/components/schemas/CourseSummary'
+        - type: object
+          properties:
+            validityMonths: { type: integer, nullable: true }
+            category: { type: string, nullable: true }
+            description: { type: string, nullable: true }
+            createdUtc: { type: string, format: date-time }
+    CoursePageV2:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CourseSummary' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+        totalPages: { type: integer }
+    Error:
+      type: object
+      properties:
+        traceId: { type: string }
+        message: { type: string }
+    UserSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        fullName: { type: string }
+        isActive: { type: boolean }
+        createdUtc: { type: string, format: date-time }
+    UserDetail:
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+    UserPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/UserSummary' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+        totalPages: { type: integer }
+    EnrollmentSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        courseId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        status: { type: string }
+        enrolledUtc: { type: string, format: date-time }
+        completedUtc: { type: string, format: date-time, nullable: true }
+    EnrollmentDetail:
+      allOf:
+        - $ref: '#/components/schemas/EnrollmentSummary'
+    EnrollmentPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/EnrollmentSummary' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalCount: { type: integer }
+        totalPages: { type: integer }
