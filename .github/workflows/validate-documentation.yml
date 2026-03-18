@@ -1,0 +1,335 @@
+name: AKR Documentation Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - '.akr-config.json'
+      - 'modules.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - '.akr-config.json'
+      - 'modules.yaml'
+
+# Permissions for Checks API integration
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+jobs:
+  validate-documentation:
+    name: Validate AKR Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git diff
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Clone core-akr-templates
+        run: |
+          mkdir -p ~/.akr
+          git clone https://github.com/reyesmelvinr-emr/core-akr-templates ~/.akr/templates
+          echo "✓ Templates cloned to ~/.akr/templates"
+      
+      - name: Install Vale
+        run: |
+          wget https://github.com/errata-ai/vale/releases/download/v2.29.0/vale_2.29.0_Linux_64-bit.tar.gz
+          tar -xzf vale_2.29.0_Linux_64-bit.tar.gz
+          sudo mv vale /usr/local/bin/
+          vale --version
+      
+      - name: Install validation dependencies
+        run: |
+          pip install --no-cache-dir requests pyyaml
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            docs/**/*.md
+            src/**/*.{cs,ts,tsx,js,jsx,py}
+            modules.yaml
+            .akr-config.json
+
+      - name: Verify Vale config path
+        run: |
+          if [ -f ~/.akr/templates/validation/.vale.ini ]; then
+            grep -Eq '^StylesPath\s*=\s*validation/vale-rules' ~/.akr/templates/validation/.vale.ini
+          elif [ -f ~/.akr/templates/.akr/.vale.ini ]; then
+            grep -Eq '^StylesPath\s*=\s*\.akr/vale-rules' ~/.akr/templates/.akr/.vale.ini
+          else
+            echo "No Vale config found in expected template paths"
+            exit 1
+          fi
+      
+      - name: Run Vale linter
+        id: vale
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Running Vale on changed documentation files..."
+          if [ -f ~/.akr/templates/validation/.vale.ini ]; then
+            VALE_CONFIG=~/.akr/templates/validation/.vale.ini
+          else
+            VALE_CONFIG=~/.akr/templates/.akr/.vale.ini
+          fi
+          DOC_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E '\.md$' || true)
+          if [ -z "$DOC_FILES" ]; then
+            echo '[]' > vale-results.json
+          else
+            vale --config "$VALE_CONFIG" $DOC_FILES --output=JSON > vale-results.json || true
+          fi
+          
+          # Display results
+          cat vale-results.json
+          
+          # Count errors
+          ERRORS=$(jq '[.. | objects | select(has("Severity")) | select(.Severity == "error")] | length' vale-results.json)
+          echo "vale_errors=$ERRORS" >> $GITHUB_OUTPUT
+      
+      - name: Run AKR validation
+        id: akr-validation
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Running AKR documentation validator..."
+
+          # Prefer local script when available (template repo self-validation), fallback to remote
+          if [ -f .akr/scripts/validate_documentation.py ]; then
+            cp .akr/scripts/validate_documentation.py validate_documentation.py
+          else
+            wget -O validate_documentation.py \
+              https://raw.githubusercontent.com/reyesmelvinr-emr/core-akr-templates/main/.akr/scripts/validate_documentation.py
+          fi
+          
+          MODULE_ARG=""
+          if [ -n "${AKR_MODULE_NAME:-}" ]; then
+            MODULE_ARG="--module-name ${AKR_MODULE_NAME}"
+          fi
+
+          export CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          # Run validation (explicit changed-files list from workflow output)
+          python validate_documentation.py --changed-files --output json --fail-on needs $MODULE_ARG > akr-results.json || true
+
+          if [ ! -f akr-results.json ]; then
+            echo '{"summary":{"total_errors":1,"total_warnings":0,"average_completeness":0},"results":[]}' > akr-results.json
+          fi
+          
+          # Display results
+          cat akr-results.json
+          
+          # Extract metrics
+          TOTAL_ERRORS=$(jq '.summary.total_errors' akr-results.json)
+          TOTAL_WARNINGS=$(jq '.summary.total_warnings' akr-results.json)
+          AVG_COMPLETENESS=$(jq '.summary.average_completeness' akr-results.json)
+          
+          echo "akr_errors=$TOTAL_ERRORS" >> $GITHUB_OUTPUT
+          echo "akr_warnings=$TOTAL_WARNINGS" >> $GITHUB_OUTPUT
+          echo "completeness=$AVG_COMPLETENESS" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Check
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('akr-results.json')) {
+              fs.writeFileSync('akr-results.json', JSON.stringify({ summary: { total_errors: 1, total_warnings: 0, average_completeness: 0 }, results: [] }));
+            }
+            
+            const akrResults = JSON.parse(fs.readFileSync('akr-results.json', 'utf8'));
+            
+            // Calculate status
+            const valeErrors = ${{ steps.vale.outputs.vale_errors || 0 }};
+            const akrErrors = ${{ steps.akr-validation.outputs.akr_errors || 0 }};
+            const totalErrors = valeErrors + akrErrors;
+            
+            const conclusion = totalErrors === 0 ? 'success' : 'failure';
+            
+            // Create check run
+            const checkRun = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'AKR Documentation Validation',
+              head_sha: context.payload.pull_request?.head?.sha || context.sha,
+              status: 'completed',
+              conclusion: conclusion,
+              output: {
+                title: totalErrors === 0 ? '✅ Documentation validation passed' : `❌ ${totalErrors} error(s) found`,
+                summary: `
+            ### Validation Summary
+            
+            - **Vale Errors:** ${valeErrors}
+            - **AKR Errors:** ${akrErrors}
+            - **AKR Warnings:** ${{ steps.akr-validation.outputs.akr_warnings || 0 }}
+            - **Average Completeness:** ${{ steps.akr-validation.outputs.completeness || 0 }}%
+            
+            ${totalErrors === 0 ? '✅ All checks passed!' : '❌ Please fix errors before merging.'}
+                `,
+                annotations: [
+                  // Add AKR validation annotations
+                  ...akrResults.results.flatMap(result =>
+                    result.issues.filter(i => i.severity === 'error').map(issue => ({
+                      path: result.file_path,
+                      start_line: issue.line || 1,
+                      end_line: issue.line || 1,
+                      annotation_level: 'failure',
+                      message: `[AKR/${issue.rule}] ${issue.message}`
+                    }))
+                  ).slice(0, 50)
+                ]
+              }
+            });
+            
+            console.log(`Check run created: ${checkRun.data.html_url}`);
+      
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request' && steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('akr-results.json')) {
+              fs.writeFileSync('akr-results.json', JSON.stringify({ summary: { total_errors: 1, total_warnings: 0, average_completeness: 0 }, results: [] }));
+            }
+            const akrResults = JSON.parse(fs.readFileSync('akr-results.json', 'utf8'));
+            
+            const valeErrors = ${{ steps.vale.outputs.vale_errors || 0 }};
+            const akrErrors = ${{ steps.akr-validation.outputs.akr_errors || 0 }};
+            const akrWarnings = ${{ steps.akr-validation.outputs.akr_warnings || 0 }};
+            const completeness = ${{ steps.akr-validation.outputs.completeness || 0 }};
+            
+            const status = (valeErrors + akrErrors) === 0 ? '✅' : '❌';
+            
+            let comment = `
+            ## ${status} AKR Documentation Validation
+            
+            | Metric | Value |
+            |--------|-------|
+            | **Vale Errors** | ${valeErrors} |
+            | **AKR Errors** | ${akrErrors} |
+            | **AKR Warnings** | ${akrWarnings} |
+            | **Completeness** | ${Number(completeness).toFixed(2)}% |
+            | **Status** | ${(valeErrors + akrErrors) === 0 ? '✅ Pass' : '❌ Fail'} |
+            `;
+            
+            comment += `
+            ${akrResults.results.length > 0 ? `
+            ### Detailed Results
+            
+            ${akrResults.results.map(result => `
+            <details>
+            <summary><strong>${result.valid ? '✅' : '❌'} ${result.file_path}</strong> (Completeness: ${Number(result.completeness_score).toFixed(2)}%)</summary>
+            
+            ${result.issues.length > 0 ? result.issues.map(issue => {
+              const icon = {error: '❌', warning: '⚠️', suggestion: '💡', info: 'ℹ️'}[issue.severity];
+              return `- ${icon} **${issue.severity.toUpperCase()}** ${issue.line ? `(line ${issue.line})` : ''}: ${issue.message}`;
+            }).join('\n') : 'No issues found'}
+            
+            </details>
+            `).join('\n')}
+            ` : ''}
+            
+            ---
+            
+            ${(valeErrors + akrErrors) === 0 ? 
+              '✅ **All validation checks passed!** Documentation is ready for review.' : 
+              '❌ **Please fix the errors above before merging.** See the Checks tab for detailed annotations.'}
+
+            ### CODEOWNERS Guidance
+            Add the following line in application-repo CODEOWNERS during onboarding:
+            
+            \.github/skills/akr-docs/SKILL.md   @org/standards-team
+            `;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.find(c => c.body.includes('AKR Documentation Validation'));
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+      
+      - name: Log usage metrics
+        if: always()
+        run: |
+          echo "📊 Logging GitHub Actions usage metrics..."
+          
+          # Calculate duration (approximation)
+          START_TIME=$(date -d "${{ github.event.pull_request.created_at || github.event.head_commit.timestamp }}" +%s)
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          MINUTES=$((DURATION / 60))
+          
+          # Create usage log
+          cat > usage-metrics.json <<EOF
+          {
+            "workflow_run_id": "${{ github.run_id }}",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.ref_name }}",
+            "event": "${{ github.event_name }}",
+            "duration_minutes": $MINUTES,
+            "timestamp": "$(date -Iseconds)",
+            "runner": "${{ runner.os }}",
+            "validation_results": {
+              "vale_errors": ${{ steps.vale.outputs.vale_errors || 0 }},
+              "akr_errors": ${{ steps.akr-validation.outputs.akr_errors || 0 }},
+              "akr_warnings": ${{ steps.akr-validation.outputs.akr_warnings || 0 }},
+              "completeness": ${{ steps.akr-validation.outputs.completeness || 0 }}
+            }
+          }
+          EOF
+          
+          cat usage-metrics.json
+          
+          echo "✓ Usage metrics logged"
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: |
+            vale-results.json
+            akr-results.json
+            usage-metrics.json
+          if-no-files-found: warn
+          retention-days: 30
+      
+      - name: Fail on errors
+        if: steps.vale.outputs.vale_errors > 0 || steps.akr-validation.outputs.akr_errors > 0
+        run: |
+          echo "❌ Validation failed with errors"
+          echo "Vale errors: ${{ steps.vale.outputs.vale_errors }}"
+          echo "AKR errors: ${{ steps.akr-validation.outputs.akr_errors }}"
+          exit 1

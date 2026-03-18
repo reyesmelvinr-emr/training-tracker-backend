@@ -1,0 +1,20 @@
+---
+# Rule: Avoid future tense in documentation
+# Level: warning
+# Documentation should describe current state, not future plans
+
+extends: existence
+message: "Avoid future tense: '%s'. Document current state, not future plans."
+level: warning
+ignorecase: true
+tokens:
+  - will be implemented
+  - will be added
+  - coming soon
+  - to be added
+  - future version
+  - planned feature
+  - upcoming release
+  - in the future
+  - will support
+  - will include

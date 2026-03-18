@@ -1,0 +1,29 @@
+---
+# Rule: Headings must use sentence case
+# Level: warning
+# AKR Charter requires sentence case for readability
+
+extends: capitalization
+message: "Headings should use sentence case: '%s'"
+level: warning
+scope: heading
+match: $sentence
+exceptions:
+  - API
+  - REST
+  - HTTP
+  - JSON
+  - SQL
+  - AKR
+  - OAuth
+  - JWT
+  - CORS
+  - URL
+  - HTML
+  - CSS
+  - ID
+  - UUID
+  - DTO
+  - MCP
+  - GitHub
+  - Copilot

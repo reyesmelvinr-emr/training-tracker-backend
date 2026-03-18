@@ -1,0 +1,18 @@
+---
+# Rule: Transparency markers must be present
+# Level: error (organization-mandatory)
+# Checks for required transparency markers (🤖 ❓ 👤)
+
+extends: existence
+message: "AKR documentation must include transparency markers (🤖 AI-generated, ❓ Human input needed, 👤 Human-authored)"
+level: error
+scope: text
+tokens:
+  - '🤖'
+  - '❓'
+  - '👤'
+nonword: true
+action:
+  name: suggest
+  params:
+    - "Add transparency markers: 🤖 for AI-generated sections, ❓ for human input needed, 👤 for human-authored content"

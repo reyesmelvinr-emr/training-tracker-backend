@@ -1,0 +1,12 @@
+---
+# Rule: Code examples should be present
+# Level: suggestion
+# AKR Charter recommends code examples for clarity
+
+extends: existence
+message: "Consider adding code examples using ```language blocks"
+level: suggestion
+scope: text
+tokens:
+  - '```'
+nonword: true

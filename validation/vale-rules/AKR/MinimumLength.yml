@@ -1,0 +1,11 @@
+---
+# Rule: Minimum section length
+# Level: warning
+# Ensure sections have sufficient content (not just placeholders)
+
+extends: occurrence
+message: "Section '%s' appears too short (minimum 50 characters recommended)"
+level: warning
+scope: heading.h2
+max: 0
+min: 50
