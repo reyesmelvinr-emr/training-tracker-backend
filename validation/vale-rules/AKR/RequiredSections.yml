@@ -1,0 +1,16 @@
+---
+# Rule: Required sections must be present in backend service documentation
+# Level: error (organization-mandatory)
+# Checks for mandatory sections from AKR_CHARTER_BACKEND.md
+
+extends: existence
+message: "Backend service documentation must include mandatory sections"
+level: error
+scope: text
+tokens:
+  - '## Overview'
+  - '## Purpose and scope'
+  - '## Dependencies'
+  - '## Key methods'
+raw:
+  - '##\s+(Overview|Purpose and scope|Dependencies|Key methods)'

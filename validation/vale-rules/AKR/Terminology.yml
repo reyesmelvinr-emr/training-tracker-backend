@@ -1,0 +1,32 @@
+---
+# Rule: Consistent terminology for services
+# Level: warning
+# Enforce AKR naming conventions
+
+extends: substitution
+message: "Use '%s' instead of '%s' for consistency"
+level: warning
+ignorecase: false
+swap:
+  # Service naming
+  'ServiceEnrollment': 'EnrollmentService'
+  'EnrollmentLogic': 'EnrollmentService'
+  'EnrollSvc': 'EnrollmentService'
+  
+  # Avoid informal terms
+  'gonna': 'going to'
+  'wanna': 'want to'
+  'kinda': 'kind of'
+  
+  # Consistent technical terms
+  'Web API': 'API'
+  'web api': 'API'
+  'restful': 'RESTful'
+  'Restful': 'RESTful'
+  'json': 'JSON'
+  'Json': 'JSON'
+  
+  # Documentation clarity
+  'simply': ''
+  'just': ''
+  'basically': ''

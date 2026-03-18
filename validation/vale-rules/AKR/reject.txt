@@ -1,0 +1,34 @@
+# AKR Vocabulary - Rejected Terms
+# Terms listed here will be flagged as errors
+
+# Avoid informal language
+gonna
+wanna
+kinda
+sorta
+stuff
+things
+basically
+just
+simply
+
+# Avoid vague terms in technical docs
+somehow
+something
+someone
+somewhere
+sometime
+
+# Avoid weak modifiers
+very
+really
+quite
+rather
+fairly
+pretty
+
+# Avoid future tense (docs should describe current state)
+will be implemented
+coming soon
+to be added
+future version

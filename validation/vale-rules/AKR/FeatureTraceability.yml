@@ -1,0 +1,28 @@
+---
+# Rule: Enforce bidirectional traceability links between feature and testing docs
+# Level: warning (non-blocking)
+# Validates relatedFeature/relatedTesting fields in YAML front matter
+
+extends: existence
+message: "Documentation must include bidirectional traceability links in YAML front matter"
+level: warning
+scope: raw
+
+# Match feature documentation files
+match: 'features\/.*\.md$'
+
+# Check for relatedTesting field in feature docs
+tokens:
+  - 'relatedTesting:'
+
+raw:
+  - 'relatedTesting:\s*\n\s+-\s+\S+'
+
+# Validation message
+check:
+  - presence: true
+    pattern: 'relatedTesting:\s*\n\s+-\s+\S+'
+    message: "Feature documentation should include 'relatedTesting:' list in YAML front matter for traceability"
+
+# Note: This rule runs on feature docs
+# Complement with TestingDocTraceability.yml for testing docs
