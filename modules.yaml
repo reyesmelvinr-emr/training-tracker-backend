@@ -5,8 +5,85 @@
   minimum_standards_version: v1.0.0
   compliance_mode: pilot
 
-modules: []
+modules:
+  - name: CourseDomain
+    businessCapability: CourseCatalogManagement
+    feature: FN00001_US001
+    project_type: api-backend
+    status: draft
+    ssg_pass3_source_reread: false
+    ssg_pass4_source_reread: false
+    max_files: 8
+    files:
+      - TrainingTracker.Api/Controllers/CoursesController.cs
+      - TrainingTracker.Api/Contracts/Courses/CourseDtos.cs
+      - TrainingTracker.Api/Domain/Entities/Course.cs
+      - TrainingTracker.Api/Domain/Services/ICourseService.cs
+      - TrainingTracker.Api/Domain/Repositories/ICourseRepository.cs
+      - TrainingTracker.Api/Infrastructure/Persistence/EfCourseRepository.cs
+    doc_output: docs/modules/CourseDomain_doc.md
+
+  - name: EnrollmentDomain
+    businessCapability: EnrollmentManagement
+    feature: FN00001_US002
+    project_type: api-backend
+    status: draft
+    ssg_pass3_source_reread: false
+    ssg_pass4_source_reread: false
+    max_files: 8
+    files:
+      - TrainingTracker.Api/Controllers/EnrollmentsController.cs
+      - TrainingTracker.Api/Contracts/Enrollments/EnrollmentDtos.cs
+      - TrainingTracker.Api/Domain/Entities/Enrollment.cs
+      - TrainingTracker.Api/Domain/Services/IEnrollmentService.cs
+      - TrainingTracker.Api/Domain/Repositories/IEnrollmentRepository.cs
+      - TrainingTracker.Api/Infrastructure/Persistence/EfEnrollmentRepository.cs
+    doc_output: docs/modules/EnrollmentDomain_doc.md
+
+  - name: UserDomain
+    businessCapability: UserIdentityManagement
+    feature: FN00001_US003
+    project_type: api-backend
+    status: draft
+    ssg_pass3_source_reread: false
+    ssg_pass4_source_reread: false
+    max_files: 8
+    files:
+      - TrainingTracker.Api/Controllers/UsersController.cs
+      - TrainingTracker.Api/Contracts/Users/UserDtos.cs
+      - TrainingTracker.Api/Domain/Entities/User.cs
+      - TrainingTracker.Api/Domain/Services/IUserService.cs
+      - TrainingTracker.Api/Domain/Repositories/IUserRepository.cs
+      - TrainingTracker.Api/Infrastructure/Persistence/EfUserRepository.cs
+    doc_output: docs/modules/UserDomain_doc.md
+
+  - name: AdminDomain
+    businessCapability: AdministrativeOperations
+    feature: FN00001_US004
+    project_type: api-backend
+    status: draft
+    ssg_pass3_source_reread: false
+    ssg_pass4_source_reread: false
+    max_files: 8
+    files:
+      - TrainingTracker.Api/Controllers/AdminController.cs
+      - TrainingTracker.Api/Contracts/Admin/AdminDtos.cs
+    doc_output: docs/modules/AdminDomain_doc.md
 
 database_objects: []
 
-unassigned: []
+unassigned:
+  - path: TrainingTracker.Api/Program.cs
+    reason: Composition root and shared API bootstrap code used by all modules.
+  - path: TrainingTracker.Api/Infrastructure/Persistence/TrainingTrackerDbContext.cs
+    reason: Shared persistence infrastructure supporting multiple domain modules.
+  - path: TrainingTracker.Api/Infrastructure/Runtime/StartupInfo.cs
+    reason: Runtime diagnostics helper reused across the API host.
+  - path: TrainingTracker.Api/Middleware/CorrelationIdMiddleware.cs
+    reason: Cross-cutting middleware, not owned by a single business module.
+  - path: TrainingTracker.Api/Middleware/ExceptionHandlingMiddleware.cs
+    reason: Cross-cutting error handling middleware used globally.
+  - path: TrainingTracker.Api/Controllers/WeatherForecastController.cs
+    reason: Sample scaffold controller outside pilot business scope.
+  - path: TrainingTracker.Api/WeatherForecast.cs
+    reason: Sample scaffold model outside pilot business scope.
