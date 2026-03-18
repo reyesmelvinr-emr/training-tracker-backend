@@ -107,9 +107,11 @@ jobs:
         run: |
           echo "Running AKR documentation validator..."
 
-          # Prefer local script when available (template repo self-validation), fallback to remote
+          # Prefer local script when available (template repo self-validation), then submodule path, fallback to remote
           if [ -f .akr/scripts/validate_documentation.py ]; then
             cp .akr/scripts/validate_documentation.py validate_documentation.py
+          elif [ -f .akr/templates/.akr/scripts/validate_documentation.py ]; then
+            cp .akr/templates/.akr/scripts/validate_documentation.py validate_documentation.py
           else
             wget -O validate_documentation.py \
               https://raw.githubusercontent.com/reyesmelvinr-emr/core-akr-templates/main/.akr/scripts/validate_documentation.py
