@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "mkdir -p .akr/logs; if [ \"$TOOL_NAME\" = \"write_file\" ] || [ \"$TOOL_NAME\" = \"create_file\" ] || [ \"$TOOL_NAME\" = \"run_skill_script\" ]; then echo \"{\\\"timestamp\\\": \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\", \\\"tool\\\": \\\"$TOOL_NAME\\\", \\\"file\\\": \\\"$TOOL_INPUT_FILE_PATH\\\"}\" >> .akr/logs/session-$(date +%Y%m%d).jsonl; fi",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
