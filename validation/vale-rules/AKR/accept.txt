@@ -1,0 +1,88 @@
+# AKR Vocabulary - Accepted Terms
+# Terms listed here will not be flagged by Vale
+
+# AKR-specific terms
+AKR
+Copilot
+GitHub Copilot
+MCP
+Model Context Protocol
+
+# Technology terms
+API
+APIs
+REST
+RESTful
+HTTP
+HTTPS
+JSON
+XML
+YAML
+SQL
+NoSQL
+OAuth
+JWT
+CORS
+GraphQL
+WebSocket
+gRPC
+
+# Framework/Platform names
+ASP\.NET Core
+Node\.js
+TypeScript
+React
+Angular
+Vue
+Django
+FastAPI
+Spring Boot
+\.NET
+Blazor
+SignalR
+
+# Database terms
+PostgreSQL
+MongoDB
+Redis
+Elasticsearch
+DynamoDB
+CosmosDB
+
+# Architecture terms
+microservice
+microservices
+monorepo
+multi-repo
+CRUD
+SOLID
+DRY
+YAGNI
+MVP
+PoC
+CI/CD
+
+# Documentation markers
+AI-generated
+human-authored
+auto-generated
+
+# Common abbreviations
+ID
+IDs
+URL
+URLs
+UUID
+CSV
+PDF
+HTML
+CSS
+
+# Service patterns
+async
+await
+middleware
+dependency injection
+IoC
+DTOs?
+ViewModels?

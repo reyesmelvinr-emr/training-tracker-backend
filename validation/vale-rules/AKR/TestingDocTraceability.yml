@@ -1,0 +1,28 @@
+---
+# Rule: Testing documentation must link back to feature documentation
+# Level: warning (non-blocking)
+# Validates relatedFeature field in YAML front matter
+
+extends: existence
+message: "Testing documentation must link to related feature documentation"
+level: warning
+scope: raw
+
+# Match testing documentation files
+match: '(testing|test-plans)\/.*\.md$'
+
+# Check for relatedFeature field in testing docs
+tokens:
+  - 'relatedFeature:'
+
+raw:
+  - 'relatedFeature:\s+\S+'
+
+# Validation message
+check:
+  - presence: true
+    pattern: 'relatedFeature:\s+\S+'
+    message: "Testing documentation must include 'relatedFeature:' field in YAML front matter to link back to feature docs"
+
+# Note: This rule runs on testing docs
+# Complement with FeatureTraceability.yml for feature docs

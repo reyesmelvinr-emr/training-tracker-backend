@@ -1,0 +1,26 @@
+---
+# Rule: Avoid passive voice in technical documentation
+# Level: suggestion
+# Active voice improves clarity
+
+extends: existence
+message: "Consider using active voice instead of '%s'"
+level: suggestion
+ignorecase: true
+tokens:
+  - be able to
+  - is being
+  - was being
+  - were being
+  - has been
+  - have been
+  - had been
+  - will be
+  - is created
+  - was created
+  - is called
+  - was called
+  - is used
+  - was used
+  - is performed
+  - was performed

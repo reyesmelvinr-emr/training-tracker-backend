@@ -1,0 +1,43 @@
+---
+# Rule: Testing documentation must include required sections and traceability links
+# Level: warning (non-blocking for testing docs)
+# Enforces AKR testing documentation standards from FEATURE_TESTING_CONSOLIDATED template
+
+extends: existence
+message: "Testing documentation should include mandatory sections and traceability links"
+level: warning
+scope: text
+
+# Match against testing documentation file patterns
+match: '(testing|test-plans|test-scenarios)\/.*\.md$'
+
+# Required section patterns
+tokens:
+  - '## Test Context'
+  - '## Test Scenarios'
+  - '## Test Cases'
+  - '## Expected Results'
+  - 'relatedFeature:'
+
+# Regular expressions for flexible matching
+raw:
+  - '##\s+Test\s+(Context|Scenarios|Cases|Expected\s+Results)'
+  - 'relatedFeature:\s+\S+'
+
+# Additional checks
+check:
+  - presence: true
+    pattern: '##\s+Test\s+Context'
+    message: "Testing documentation must include '## Test Context' section"
+  - presence: true
+    pattern: '##\s+Test\s+Scenarios'
+    message: "Testing documentation must include '## Test Scenarios' section"
+  - presence: true
+    pattern: 'relatedFeature:'
+    message: "Testing documentation must include 'relatedFeature:' front matter for traceability"
+
+# Exceptions (files that don't need these sections)
+exceptions:
+  - 'test-utilities'
+  - 'test-helpers'
+  - 'README.md'

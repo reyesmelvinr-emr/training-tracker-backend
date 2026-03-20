@@ -1,0 +1,12 @@
+﻿project:
+  name: TrainingTracker.Api
+  layer: API
+  standards_version: v1.0.0
+  minimum_standards_version: v1.0.0
+  compliance_mode: pilot
+
+modules: []
+
+database_objects: []
+
+unassigned: []
