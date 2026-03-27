@@ -25,7 +25,7 @@ Steps followed: 1. [step] - completed | 2. [step] - completed | ...
 Use when asked to propose module groupings or initialize modules.yaml.
 
 1. Check for modules.yaml in the project root.
-2. If modules exist and are approved, redirect to Mode B.
+2. If modules exist, proceed only for module targets with status approved; stop and request approval for draft/review targets.
 3. Scan source files and group by dominant business/domain noun.
 4. Assign roles by file patterns:
 - Backend: controller, service interface/impl, repository interface/impl, DTO/contracts.
@@ -37,6 +37,8 @@ Use when asked to propose module groupings or initialize modules.yaml.
 - ui-component
 - microservice
 - general
+7.5. Write committed review artifact to docs/modules/.akr/{project}_review.md.
+7.6. Stop and wait for explicit human approval before applying module regrouping changes.
 8. Write draft modules.yaml with status: draft for all module entries.
 9. Produce grouping review checklist and stop for human approval.
 
@@ -53,17 +55,22 @@ Use only after Mode A approval. If target module status is draft, stop and reque
 ### Mode B workflow steps
 1. Read modules.yaml and resolve the requested module.
 2. Load condensed charter by project_type from copilot-instructions:
-- api-backend -> backend-service.instructions.md
-- ui-component -> ui-component.instructions.md
-- microservice -> backend-service.instructions.md
-- general -> backend-service.instructions.md
+- PATH A (@github available — VS Code): Use `@github get file <charter_name>` to fetch the condensed charter from `core-akr-templates/copilot-instructions/`:
+  - api-backend -> backend-service.instructions.md
+  - ui-component -> ui-component.instructions.md
+  - microservice -> backend-service.instructions.md
+  - general -> backend-service.instructions.md
+- PATH B (@github unavailable or Visual Studio): Load from `.github/copilot-instructions.md` or local file path directly.
+- PROHIBITION: Do NOT re-read charter files or source files via @github in Passes 2-7. Charter content must be placed in the forward payload in Pass 1 and carried forward as a condensed summary only. Each @github call consumes one premium request; exceeding 2 @github calls per run is prohibited.
 3. Select base template:
 - api-backend/microservice/general -> lean_baseline_service_template.md (module variant)
 - ui-component -> ui_component_template.md (module variant)
 4. Read only files listed in module files.
 5. Generate documentation using Section-Scoped Generation (SSG).
-6. Run validate_documentation.py for the target output.
-7. Write document to module doc_output path.
+5.5. Write committed draft to docs/modules/.akr/{module}_draft.md.
+5.6. Surface preview for human review and wait for explicit approval before finalization.
+6. Strip draft-only front matter fields and write final document to module doc_output path.
+7. Run validate_documentation.py for the final target output.
 8. Open/update draft PR with completion checklist.
 9. Ensure metadata header is present at top of output file.
 
@@ -78,10 +85,10 @@ template: {template}
 charter: {condensed charter}
 modules-yaml-status: approved
 generation-strategy: section-scoped
-passes-completed: 1,2,3,4,5,6,7
+passes-completed: {pass-list for this run, e.g. 1,2A,2B,3,4,5,6,7}
 pass-timings-seconds: {comma-separated or unavailable}
 total-generation-seconds: {value or unavailable}
-steps-completed: 1,2,3,4,5,6,7,8,9
+steps-completed: {workflow-step list completed in this run}
 generated-at: {ISO-8601 timestamp}
 -->
 
