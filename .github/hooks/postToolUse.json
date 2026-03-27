@@ -4,7 +4,7 @@
     "postToolUse": [
       {
         "type": "command",
-        "bash": "mkdir -p .akr/logs; if [ \"$TOOL_NAME\" = \"write_file\" ] || [ \"$TOOL_NAME\" = \"create_file\" ] || [ \"$TOOL_NAME\" = \"run_skill_script\" ]; then echo \"{\\\"timestamp\\\": \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\", \\\"tool\\\": \\\"$TOOL_NAME\\\", \\\"file\\\": \\\"$TOOL_INPUT_FILE_PATH\\\"}\" >> .akr/logs/session-$(date +%Y%m%d).jsonl; fi",
+        "bash": "mkdir -p .akr/logs; if [ \"$TOOL_NAME\" = \"write_file\" ] || [ \"$TOOL_NAME\" = \"create_file\" ] || [ \"$TOOL_NAME\" = \"run_skill_script\" ]; then TIMESTAMP=$(python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime(\"%Y-%m-%dT%H:%M:%SZ\"))' 2>/dev/null || date -u +\"%Y-%m-%dT%H:%M:%SZ\" 2>/dev/null || echo \"unavailable\"); SESSION_DATE=$(python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime(\"%Y%m%d\"))' 2>/dev/null || date +\"%Y%m%d\" 2>/dev/null || echo \"unknown\"); echo \"{\\\"timestamp\\\": \\\"$TIMESTAMP\\\", \\\"tool\\\": \\\"$TOOL_NAME\\\", \\\"file\\\": \\\"$TOOL_INPUT_FILE_PATH\\\"}\" >> .akr/logs/session-$SESSION_DATE.jsonl; fi",
         "timeoutSec": 5
       }
     ]
