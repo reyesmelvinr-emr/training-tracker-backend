@@ -48,6 +48,9 @@ bld/
 .env.local
 .env.*.local
 
+# AKR local session artifacts
+.akr/logs/
+
 # OS
 .DS_Store
 Thumbs.db
