@@ -4,12 +4,17 @@ description: >
   Generate AKR module documentation following charters and templates.
   Invoke explicitly via /akr-docs [mode-a | mode-b | mode-c] [target].
 disable-model-invocation: true
-optimized-for: claude-sonnet-4-6
-tested-on:
-  - claude-sonnet-4-6
-  - gpt-4o
+compatibility:
+  models:
+    - claude-sonnet-4-6
+    - gpt-4o
+metadata:
+  skill-version: 1.0.0
+  optimized-for: claude-sonnet-4-6
+  tested-on:
+    - claude-sonnet-4-6
+    - gpt-4o
 user-invocable: true
-skill-version: 1.0.0
 ---
 <!-- SKILL_VERSION: v1.0.0 -->
 <!-- Distribution: Managed by core-akr-templates. Do not edit directly in application repositories. -->
