@@ -114,11 +114,7 @@ SSG rules:
 - Split module and restart if needed.
 - Developer-elected single-pass is allowed only in pilot mode and must set generation-strategy accordingly.
 
-Marker policy:
-- Use 🤖 for inferred statements.
-- Use ❓ for unresolved required inputs.
-- Use NEEDS and VERIFY for outstanding checks.
-- Use DEFERRED only with explicit rationale.
+Marker policy: Apply rules as defined in the loaded condensed charter (copilot-instructions/). Do not restate marker rules here.
 
 ## Mode C - Interactive HITL Completion
 Use for existing documents with unresolved ❓ markers.
