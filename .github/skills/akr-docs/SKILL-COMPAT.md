@@ -31,10 +31,20 @@ Last updated: 2026-03-17
 |---|---|---|---|---|
 | KG-001 | Hook log availability can vary by execution surface (including Copilot sessions) | Criterion 10 evidence collection may be incomplete | If hooks are unavailable, run `python .akr/scripts/validate_documentation.py --changed-files "<space-separated file list>" --fail-on needs` manually before PR (or `--all docs/modules` when no file list is available) | Mitigated |
 
+## Charter Version Compatibility
+Map condensed charter versions to the SKILL.md version they were validated against. Update this table in the same commit as any material charter change. The version header in each instructions file is machine-readable; bump it here when a validator or distribution check will actually consume the version number.
+
+| Charter File | Charter Version | Compatible SKILL Version | Last Validated | Notes |
+|---|---|---|---|---|
+| backend-service.instructions.md | 1.0 | v1.0.0 | 2026-03-31 | Grounding Rules, Readability Floor, Unknowns Discipline added. Bump charter version when SKILL-COMPAT validator reads this table. |
+| ui-component.instructions.md | 1.0 | v1.0.0 | ❓ | Existence confirmed; compatibility not yet validated. |
+| database.instructions.md | 1.0 | v1.0.0 | ❓ | Existence not confirmed for this charter version; validate in D11-A. |
+
 ## Re-Evaluation Policy
 - Re-run evals after any SKILL.md change.
 - Re-run evals after any major Copilot model update.
 - Update this file and benchmark data in the same change set.
+- Update Charter Version Compatibility table in the same commit as any material condensed charter change.
 
 ## Future Enhancement Paths
 | Enhancement | Description | Trigger Condition | Estimated Effort |

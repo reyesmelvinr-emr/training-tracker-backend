@@ -68,16 +68,16 @@ Use only after Mode A approval. If target module status is draft, stop and reque
 - PATH B (@github unavailable or Visual Studio): Load from `.github/copilot-instructions.md` or local file path directly.
 - PROHIBITION: Do NOT re-read charter files or source files via @github in Passes 2-7. Charter content must be placed in the forward payload in Pass 1 and carried forward as a condensed summary only. Each @github call consumes one premium request; exceeding 2 @github calls per run is prohibited.
 3. Select base template:
-- api-backend/microservice/general -> lean_baseline_service_template.md (module variant)
-- ui-component -> ui_component_template.md (module variant)
+- api-backend/microservice/general -> templates/lean_baseline_service_template_module.md
+- ui-component -> templates/ui_component_template_module.md
 4. Read only files listed in module files.
 5. Generate documentation using Section-Scoped Generation (SSG).
 5.5. Write committed draft to docs/modules/.akr/{module}_draft.md.
 5.6. Surface preview for human review and wait for explicit approval before finalization.
 6. Strip draft-only front matter fields and write final document to module doc_output path.
 7. Run validate_documentation.py for the final target output.
-8. Open/update draft PR with completion checklist.
-9. Ensure metadata header is present at top of output file.
+8. Ensure metadata header is present at top of output file.
+9. Open/update draft PR with completion checklist.
 
 ### Required metadata header contract
 Write this before document sections:
@@ -104,7 +104,7 @@ Pass 3: Architecture Overview and dependency flow.
 Pass 4: Business Rules table generation using forward payload only.
 Pass 5: Data Operations coverage using forward payload only.
 Pass 6: Questions and Gaps plus marker normalization.
-Pass 7: Final assembly, front matter check, metadata header check, and truncation check.
+Pass 7: Final assembly, front matter check, metadata header check, truncation check, and template section-order conformance check (sections must appear in template order unless marked conditional).
 
 SSG rules:
 - Keep forward payload compact and structured.
@@ -114,7 +114,21 @@ SSG rules:
 - Split module and restart if needed.
 - Developer-elected single-pass is allowed only in pilot mode and must set generation-strategy accordingly.
 
-Marker policy: Apply rules as defined in the loaded condensed charter (copilot-instructions/). Do not restate marker rules here.
+Marker policy: Apply placement rules as defined in the loaded condensed charter (copilot-instructions/). For grounding-specific marker decisions (when to use 🤖 vs unmarked vs ❓), the Source Grounding rules in this file take precedence.
+
+## Source Grounding
+Apply in every Mode B pass. These rules are not optional and are not overridden by template placeholders.
+- Do not invent auth requirements, consumers, DB indexes, external integrations, future features, or cross-module dependencies unless directly evidenced by files listed in modules.yaml for this module.
+- Prefer unmarked factual statements for content directly evidenced by source files. Use 🤖 only for synthesis or inference across multiple files. Use ❓ only for missing business context, intent, dates, or ownership that cannot be determined from the listed module files alone.
+- Do not emit ❓ for information directly recoverable from the listed module files. If the code answers the question, state the answer.
+
+## Conditional Sections
+Evaluate conditionality in Pass 1 using the module file list. Record the decision in the committed draft front matter.
+When a conditional section is excluded, record the exclusion reason in the committed draft front matter under `excluded-sections` (e.g., `excluded-sections: [API Contract — no [Http*] controller found]`). Pass 7 treats absent sections listed here as conformant omissions, not errors.
+- API Contract: include only if the module contains a controller with [Http*] attributes or explicit external DTO contracts visible in the listed module files.
+- Validation Rules: include only if *Validator.cs files, DTO data annotations, or explicit guard clauses exist in the listed module files.
+- Consumer Map: include only if actual callers or explicit dependencies are visible in the listed module files — not inferred from module name.
+- Related Documentation: include only if doc_output paths for related modules are present in modules.yaml.
 
 ## Mode C - Interactive HITL Completion
 Use for existing documents with unresolved ❓ markers.
@@ -133,7 +147,9 @@ Mode C completion checklist:
 - Validation passes for current compliance mode.
 
 ## Output quality requirements
-- Include all required sections for detected doc type.
-- Ensure Operations Map and Data Operations are complete.
+- Include all required sections for detected doc type, in template section order.
+- Ensure Operations Map and Data Operations are complete and non-truncated.
 - Ensure business rules include Why It Exists and Since When columns.
 - Do not include Change History sections.
+- Include Quick Reference (TL;DR) readable by a Product Owner or QA reviewer without reading the rest of the document.
+- Include one primary flow narrative and one error/status table if the module has ≥2 files and at least one operation with a documented failure path.
