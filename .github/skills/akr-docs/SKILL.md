@@ -2,7 +2,7 @@
 name: akr-docs
 description: >
   Generate AKR module documentation following charters and templates.
-  Invoke explicitly via /akr-docs [groupings | generate | resolve] [target].
+  Invoke explicitly via /akr-docs [groupings | generate | resolve] [target] [--use-ssg].
 disable-model-invocation: true
 compatibility:
   models:
@@ -71,7 +71,7 @@ Use only after ProposeGroupings approval. If target module status is draft, stop
 - api-backend/microservice/general -> templates/lean_baseline_service_template_module.md
 - ui-component -> templates/ui_component_template_module.md
 4. Read only files listed in module files.
-5. Generate documentation using Section-Scoped Generation (SSG).
+5. Generate documentation. Default strategy is single-pass; if `--use-ssg` is provided, run Section-Scoped Generation (SSG) passes.
 5.5. Write committed draft to docs/modules/.akr/{module}_draft.md.
 5.6. Surface preview for human review and wait for explicit approval before finalization.
 6. Strip draft-only front matter fields and write final document to module doc_output path.
@@ -89,8 +89,8 @@ mode: generation
 template: {template}
 charter: {condensed charter}
 modules-yaml-status: approved
-generation-strategy: section-scoped
-passes-completed: {pass-list for this run, e.g. 1,2A,2B,3,4,5,6,7}
+generation-strategy: {single-pass (default) or section-scoped when --use-ssg is specified}
+passes-completed: {single-pass (default) or pass-list for --use-ssg runs, e.g. 1,2A,2B,3,4,5,6,7}
 pass-timings-seconds: {comma-separated or unavailable}
 total-generation-seconds: {value or unavailable}
 steps-completed: {workflow-step list completed in this run}
@@ -112,7 +112,7 @@ SSG rules:
 - If generation exceeds 45 minutes, trigger slow-generation handler:
 - Continue if near completion.
 - Split module and restart if needed.
-- Developer-elected single-pass is allowed only in pilot mode and must set generation-strategy accordingly.
+- Single-pass is the default generation strategy; use `--use-ssg` for large-file modules or when higher-fidelity multi-pass coverage is required.
 
 Marker policy: Apply placement rules as defined in the loaded condensed charter (copilot-instructions/). For grounding-specific marker decisions (when to use 🤖 vs unmarked vs ❓), the Source Grounding rules in this file take precedence.
 
