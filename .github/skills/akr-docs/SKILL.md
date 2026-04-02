@@ -29,36 +29,71 @@ Steps followed: 1. [step] - completed | 2. [step] - completed | ...
 ## ProposeGroupings - Propose Module Groupings
 Use when asked to propose module groupings or initialize modules.yaml.
 
+modules.yaml is a minimal grouping manifest. Its only job is to record which files belong to which module and where the output document goes. All other metadata (project_type, businessCapability, feature, layer, roles, descriptions) is derived from source files during GenerateDocumentation and written into the generated document — not into modules.yaml.
+
 1. Check for modules.yaml in the project root.
-2. If modules exist, proceed only for module targets where grouping status is approved; stop and request grouping approval for draft/review targets.
-  Note: grouping approval authorizes generation only. It does not set the generated document front matter status.
+2. If modules.yaml exists, check whether any modules have grouping_status: approved. If so, do not modify those modules. Only add new modules or update modules still at grouping_status: draft.
 3. Scan source files and group by dominant business/domain noun.
-4. Assign roles by file patterns:
-- Backend: controller, service interface/impl, repository interface/impl, DTO/contracts.
-- UI: page, component, hook, type definition.
-5. Assign SQL/migration files to database_objects only.
-6. Add uncertain files to unassigned with reason text.
-7. Detect project_type:
-- api-backend
-- ui-component
-- microservice
-- general
-8. Write draft modules.yaml with status: draft for all module entries.
-9. Produce grouping review checklist, instruct the reviewer to inspect modules.yaml directly in VS Code, and stop for explicit human approval before any PR or downstream generation.
+4. Assign each file to the module whose domain noun it belongs to:
+   - Backend pattern: controller, service interface/impl, repository interface/impl, entity, DTO/contracts.
+   - UI pattern: page component, sub-components, hooks, type definitions.
+5. Assign SQL/migration/SSDT files to database_objects only. Never group them with application code.
+6. Add uncertain or shared infrastructure files to unassigned with a one-line reason.
+7. Write modules.yaml using the exact schema below. Do not add any fields not shown.
+
+   ```yaml
+   project:
+     name: {project-name}
+     layer: {UI|API|Database|Integration|Infrastructure|Full-Stack}
+     standards_version: v1.0.0
+     minimum_standards_version: v1.0.0
+     compliance_mode: pilot
+
+   modules:
+     - name: {lowercase-kebab or camelCase module name matching the domain noun}
+       grouping_status: draft
+       doc_output: docs/modules/{module-name}.md
+       files:
+         - {relative file path}
+         - {relative file path}
+
+   database_objects: []
+
+   unassigned:
+     - path: {file path}
+   ```
+
+   Schema rules — strictly enforced:
+   - files: plain string list of relative paths. No path/role/responsibility sub-keys.
+   - grouping_status: always draft. This is the only status field in modules.yaml.
+   - Do not add: project_type, businessCapability, feature, layer, status, max_files, description, compliance_mode, or any other field. Those belong in the generated document, not in modules.yaml.
+   - database_objects: empty array unless confirmed SQL/SSDT/migration files exist.
+   - unassigned: include scaffold artifacts (WeatherForecast*, etc.) with a deletion recommendation.
+
+8. Display the proposed groupings as a summary table in chat (module name → file count → files), then instruct the reviewer to inspect modules.yaml in VS Code and confirm or request changes before GenerateDocumentation is run.
 
 ProposeGroupings checklist:
 - All groupings reviewed for semantic correctness.
 - Module names reflect domain language.
 - No module exceeds max_files.
-- Misplaced and shared files reviewed.
-- businessCapability keys align with tag registry.
+- Each module contains files that share a single domain noun.
+- No file appears in more than one module.
+- PLATFORM files are grouped under a platform module (if two or more exist).
+- EXCLUDED files (config, project metadata, dev tooling, local docs) are silently omitted — not in unassigned.
+- TEST-PROJECT files are silently omitted — not in unassigned.
+- SCAFFOLD files and template placeholders are in unassigned with a deletion recommendation.
+- database_objects is [] if no DB artifacts were found.
 
 ## GenerateDocumentation - Generate Module Documentation
-Use only after ProposeGroupings approval. If target module status is draft, stop and request approval first.
+Use only after ProposeGroupings approval. If target module grouping_status is draft, stop and request approval first.
 
 ### GenerateDocumentation workflow steps
 1. Read modules.yaml and resolve the requested module.
-2. Load condensed charter by project_type from copilot-instructions:
+2. Infer `project_type` from the module file set, then load the matching condensed charter from copilot-instructions:
+- Infer `api-backend` when backend patterns are present (controller, service interface/impl, repository interface/impl, entity, DTO/contracts).
+- Infer `ui-component` when UI patterns are present (page component, sub-components, hooks, type definitions).
+- Infer `microservice` only when the module is orchestration-heavy and lacks the standard CRUD vertical-slice shape.
+- Default to `general` if the file set is ambiguous.
 - PATH A (@github available — VS Code): Use `@github get file <charter_name>` to fetch the condensed charter from `core-akr-templates/copilot-instructions/`:
   - api-backend -> backend-service.instructions.md
   - ui-component -> ui-component.instructions.md
@@ -89,7 +124,6 @@ skill-version: v1.0.0
 mode: generation
 template: {template}
 charter: {condensed charter}
-modules-yaml-status: {actual module status from modules.yaml at generation time}
 generation-strategy: {single-pass (default) or section-scoped when --use-ssg is specified}
 passes-completed: {single-pass (default) or pass-list for --use-ssg runs, e.g. 1,2A,2B,3,4,5,6,7}
 pass-timings-seconds: {comma-separated or unavailable}
@@ -97,8 +131,6 @@ total-generation-seconds: {value or unavailable}
 steps-completed: {workflow-step list completed in this run}
 generated-at: {ISO-8601 timestamp}
 -->
-
-Interpretation note: `modules-yaml-status` is a traceability field only. It records the Mode A grouping state used when Mode B ran. It must not be interpreted as generated document approval state.
 
 ### Section-Scoped Generation (SSG) passes
 Pass 1: Module Files and role mapping.
