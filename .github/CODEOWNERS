@@ -11,8 +11,8 @@ validation/vale-rules/** @reyesmelvinr-emr
 
 
 # BEGIN AKR GOVERNANCE
-.github/pull_request_template/ @org/standards-team
-validation/vale-rules/ @org/standards-team
-validation/.vale.ini @org/standards-team
-.akr/ @org/standards-team
+.github/pull_request_template/ @reyesmelvinr-emr
+validation/vale-rules/ @reyesmelvinr-emr
+validation/.vale.ini @reyesmelvinr-emr
+.akr/ @reyesmelvinr-emr
 # END AKR GOVERNANCE
