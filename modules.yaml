@@ -7,7 +7,7 @@
 
 modules:
   - name: Course
-    businessCapability: ApplicationEditor
+    businessCapability: CourseManagement
     feature: FN00000_US000
     project_type: api-backend
     status: approved
@@ -23,7 +23,7 @@ modules:
     doc_output: docs/services/Course_doc.md
 
   - name: Enrollment
-    businessCapability: ApplicationEditor
+    businessCapability: EnrollmentProcess
     feature: FN00000_US000
     project_type: api-backend
     status: approved
@@ -39,7 +39,7 @@ modules:
     doc_output: docs/services/Enrollment_doc.md
 
   - name: User
-    businessCapability: ApplicationEditor
+    businessCapability: UserManagement
     feature: FN00000_US000
     project_type: api-backend
     status: approved
@@ -55,10 +55,10 @@ modules:
     doc_output: docs/services/User_doc.md
 
   - name: Admin
-    businessCapability: DocumentGeneration
+    businessCapability: AdminControls
     feature: FN00000_US000
     project_type: api-backend
-    status: draft
+    status: approved
     compliance_mode: pilot
     max_files: 2
     files:
