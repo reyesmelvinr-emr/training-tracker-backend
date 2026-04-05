@@ -30,7 +30,7 @@ stage_timers = {
 ```
 Record `stage_timers.preflight_seconds = now_utc - generation_started_at` after module lookup and pre-flight checks complete.
 
-**Cross-chat template and charter cache:** `.akr/cache/` in the workspace root. Templates and charters fetched via `@github` are written here keyed by `{owner}/{repo}@{branch}/{encoded-path}`. A new VS Code chat session in the same workspace can read from this cache without a remote fetch, eliminating repeat network round-trips. Bypass cache only when `--remote-refresh` is passed. Add `.akr/cache/` to `.gitignore` to prevent committing cached remote assets.
+**Cross-chat template and charter cache:** `.akr/cache/` in the workspace root. Templates and charters fetched via `@github` are written here keyed by `{owner}/{repo}@{branch}/{encoded-path}`. A new VS Code chat session in the same workspace can read from this cache without a remote fetch, eliminating repeat network round-trips. To force refresh cache contents, run `/akr-docs refresh-assets` before generating. Add `.akr/cache/` to `.gitignore` to prevent committing cached remote assets.
 
 - If `grouping_status: draft` → stop. Tell the user to approve the grouping first.
 - If module not found → stop. Tell the user to run `/akr-docs groupings` first.
@@ -65,8 +65,8 @@ blocks. Discard the template prose body.** Parse and carry forward:
 **Before fetching, check cache:**
 1. Compute cache key: `{owner}/{repo}@{branch}/{template_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/templates/lean_baseline_service_template_module.md`)
 2. Cache file: `.akr/cache/{encoded_cache_key}.md`
-3. If cache file exists and `--remote-refresh` was NOT passed: read template from cache, skip `@github` fetch, set `template-cache: hit`.
-4. If cache file does not exist or `--remote-refresh` was passed: fetch via `@github get file`, write content to cache file, set `template-cache: miss`.
+3. If cache file exists: read template from cache, skip `@github` fetch, set `template-cache: hit`.
+4. If cache file does not exist: fetch via `@github get file`, write content to cache file, set `template-cache: miss`.
 
 If the template cannot be fetched via `@github` and no cache hit exists → report the failure and stop. Templates are not included in the distributed workspace bundle; PATH A (`@github get file`) is required for template access when no cache is available.
 
@@ -89,8 +89,8 @@ allowed `@github` call.
 **Before fetching, check cache:**
 1. Compute cache key: `{owner}/{repo}@{branch}/{charter_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/copilot-instructions/backend-service.instructions.md`)
 2. Cache file: `.akr/cache/{encoded_cache_key}.md`
-3. If cache file exists and `--remote-refresh` was NOT passed: read charter from cache, skip `@github` fetch, set `charter-cache: hit`.
-4. If cache file does not exist or `--remote-refresh` was passed: fetch via `@github get file`, write content to cache file, set `charter-cache: miss`.
+3. If cache file exists: read charter from cache, skip `@github` fetch, set `charter-cache: hit`.
+4. If cache file does not exist: fetch via `@github get file`, write content to cache file, set `charter-cache: miss`.
 
 If the charter cannot be fetched via `@github` and no cache hit exists → report the failure and stop. Charters are not included in the distributed workspace bundle; PATH A is required for charter access when no cache is available.
 
@@ -144,7 +144,7 @@ Record `stage_assembly_start = now_utc` before generating the first section.
 Generate sections in section plan order using:
 1. `akr:section` directive guidance for field coverage, markers, violations, format
 2. Charter grounding rules from Step 3 forward payload
-3. Targeted template section fetch only when exact format verification is needed
+3. Targeted template section inspection from already loaded template content when exact format verification is needed
 4. Transparency markers — every AI-inferred statement must include a 🤖 marker inline. Do not emit unmarked AI narrative.
 
 ---
