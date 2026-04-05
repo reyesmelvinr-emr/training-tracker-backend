@@ -15,6 +15,23 @@ from the template's `akr:` directives. Do not encode structural knowledge here.
 
 Read `modules.yaml`. Locate the target module.
 
+Capture `generation_started_at` as UTC timestamp immediately when `/akr-docs generate` is invoked. This timestamp is used to compute per-stage timing metrics recorded in Steps 2–8.
+
+Initialize stage timers at invocation:
+```
+stage_timers = {
+  preflight_seconds: null,
+  template_fetch_seconds: null,
+  charter_fetch_seconds: null,
+  source_extraction_seconds: null,
+  assembly_seconds: null,
+  write_seconds: null
+}
+```
+Record `stage_timers.preflight_seconds = now_utc - generation_started_at` after module lookup and pre-flight checks complete.
+
+**Cross-chat template and charter cache:** `.akr/cache/` in the workspace root. Templates and charters fetched via `@github` are written here keyed by `{owner}/{repo}@{branch}/{encoded-path}`. A new VS Code chat session in the same workspace can read from this cache without a remote fetch, eliminating repeat network round-trips. Bypass cache only when `--remote-refresh` is passed. Add `.akr/cache/` to `.gitignore` to prevent committing cached remote assets.
+
 - If `grouping_status: draft` → stop. Tell the user to approve the grouping first.
 - If module not found → stop. Tell the user to run `/akr-docs groupings` first.
 - If `feature` value matches the all-zero placeholder (e.g. `FN00000_US000`) → do not copy it. Write `feature: ❓ NEEDS real work-item tag` in the output front matter instead.
@@ -45,7 +62,15 @@ blocks. Discard the template prose body.** Parse and carry forward:
 - **Section registry:** ordered list of `{id, required, order, condition}` objects
 - **Condition definitions:** token → detection description mapping
 
-If the template cannot be fetched via `@github` → report the failure and stop. Templates are not included in the distributed workspace bundle; PATH A (`@github get file`) is required for template access.
+**Before fetching, check cache:**
+1. Compute cache key: `{owner}/{repo}@{branch}/{template_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/templates/lean_baseline_service_template_module.md`)
+2. Cache file: `.akr/cache/{encoded_cache_key}.md`
+3. If cache file exists and `--remote-refresh` was NOT passed: read template from cache, skip `@github` fetch, set `template-cache: hit`.
+4. If cache file does not exist or `--remote-refresh` was passed: fetch via `@github get file`, write content to cache file, set `template-cache: miss`.
+
+If the template cannot be fetched via `@github` and no cache hit exists → report the failure and stop. Templates are not included in the distributed workspace bundle; PATH A (`@github get file`) is required for template access when no cache is available.
+
+Record `stage_timers.template_fetch_seconds = now_utc - stage_start` after template content is available (cache hit or live fetch).
 
 ---
 
@@ -61,7 +86,15 @@ allowed `@github` call.
 | `microservice` | `@github get file core-akr-templates/copilot-instructions/backend-service.instructions.md` |
 | `general` | `@github get file core-akr-templates/copilot-instructions/backend-service.instructions.md` |
 
-If the charter cannot be fetched via `@github` → report the failure and stop. Charters are not included in the distributed workspace bundle; PATH A is required for charter access.
+**Before fetching, check cache:**
+1. Compute cache key: `{owner}/{repo}@{branch}/{charter_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/copilot-instructions/backend-service.instructions.md`)
+2. Cache file: `.akr/cache/{encoded_cache_key}.md`
+3. If cache file exists and `--remote-refresh` was NOT passed: read charter from cache, skip `@github` fetch, set `charter-cache: hit`.
+4. If cache file does not exist or `--remote-refresh` was passed: fetch via `@github get file`, write content to cache file, set `charter-cache: miss`.
+
+If the charter cannot be fetched via `@github` and no cache hit exists → report the failure and stop. Charters are not included in the distributed workspace bundle; PATH A is required for charter access when no cache is available.
+
+Record `stage_timers.charter_fetch_seconds = now_utc - stage_start` after charter content is available (cache hit or live fetch).
 
 Compress into a forward payload summary (~400 tokens). Carry only:
 - Marker placement rules (🤖 / ❓ / NEEDS / VERIFY / DEFERRED)
@@ -71,6 +104,8 @@ Compress into a forward payload summary (~400 tokens). Carry only:
 ---
 
 ## Step 4: Read Source Files → Structured Facts Payload
+
+Record `stage_source_extraction_start = now_utc` before reading any source file.
 
 Read only files listed under `files:` for this module in `modules.yaml`.
 
@@ -89,6 +124,8 @@ facts = {
 }
 ```
 
+Record `stage_timers.source_extraction_seconds = now_utc - stage_source_extraction_start` after the structured facts payload is complete.
+
 ---
 
 ## Step 5: Resolve Section Plan
@@ -101,6 +138,8 @@ For each section in the section registry (sorted by order):
 ---
 
 ## Step 6: Generate Documentation
+
+Record `stage_assembly_start = now_utc` before generating the first section.
 
 Generate sections in section plan order using:
 1. `akr:section` directive guidance for field coverage, markers, violations, format
@@ -135,31 +174,66 @@ Generate sections in section plan order using:
 SSG rules: never re-read source files or charter after Pass 1. Never re-parse
 template directives after Step 2.
 
+Record `stage_timers.assembly_seconds = now_utc - stage_assembly_start` after all sections are assembled and the document body is complete.
+
 ---
 
 ## Step 8: Write Draft Artifact
 
-Write to `docs/modules/.akr/{ModuleName}_draft.md` with draft-only front matter:
+Resolve draft path in this order:
+
+1. If module defines `draft_output`, write to that path.
+2. Otherwise default to `docs/modules/.akr/{ModuleName}_draft.md`.
+
+Record `stage_write_start = now_utc` before writing the draft file.
+Compute `draft_generation_seconds = now_utc - generation_started_at` at the time the draft file is written.
+
+Write draft with draft-only front matter:
 ```yaml
 preview-generated-at: {ISO-8601}
+generation-started-at: {ISO-8601}
+draft-generation-seconds: {integer}
+stage-timings:
+  preflight-seconds: {integer}
+  template-fetch-seconds: {integer}
+  template-cache: {hit | miss}
+  charter-fetch-seconds: {integer}
+  charter-cache: {hit | miss}
+  source-extraction-seconds: {integer}
+  assembly-seconds: {integer}
+  write-seconds: {integer}
 review-mode: full
 generation-strategy: {single-pass | section-scoped}
 passes-completed: {list}
 excluded-sections:
   - "section_id — reason"
 ```
+Record `stage_timers.write_seconds = now_utc - stage_write_start` after the file is written and add to the `stage-timings` block above.
 
-Surface draft path in chat. Wait for explicit user confirmation before Step 9.
+Surface draft path in chat and include this confirmation prompt payload:
+- `Draft path: {draft_output_path}`
+- `Final path: {doc_output_path}`
+- `Total draft generation time: {draft_generation_seconds}s`
+- Stage breakdown: `preflight {N}s | template-fetch {N}s ({hit|miss}) | charter-fetch {N}s ({hit|miss}) | source-extraction {N}s | assembly {N}s | write {N}s`
+
+If `draft_output_path` and `doc_output_path` differ, explicitly warn that finalize will promote content to a different path.
+
+Wait for explicit user confirmation before Step 9.
 
 ---
 
 ## Step 9: Write Final Document
 
 On user confirmation:
-1. Strip draft-only front matter fields (`preview-generated-at`, `review-mode`)
+1. Strip draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`)
 2. Set `status: draft` — never copy grouping status from modules.yaml
 3. Confirm `<!-- akr-generated -->` metadata header is present
-4. Write to `doc_output` path from modules.yaml
+4. Finalize by promoting the reviewed draft artifact:
+  - If draft path differs from `doc_output`, move/rename the sanitized draft file to `doc_output`
+  - If draft path equals `doc_output`, sanitize in place
+5. Cleanup policy:
+  - Default: do not leave a duplicate draft artifact after successful promotion
+  - Optional `--keep-draft`: keep a copy at `draft_output` for audit workflows
 
 ---
 
@@ -195,7 +269,7 @@ python ~/.akr/templates/.github/skills/akr-docs/scripts/akr_inline_validate.py \
 | YAML front matter presence | Missing `---` block |
 | Required front matter fields | Missing businessCapability, feature, layer, project_type, status, compliance_mode |
 | Field value validity | Invalid layer, project_type, status, compliance_mode values |
-| Draft-only field cleanliness | preview-generated-at or review-mode present in final output |
+| Draft-only field cleanliness | preview-generated-at, generation-started-at, draft-generation-seconds, stage-timings, or review-mode present in final output |
 | akr-generated header | Missing `<!-- akr-generated` comment |
 | Required section headings | Missing sections (discovered from akr:section directives or baseline fallback) |
 | Unresolved ❓ markers | Warning in pilot, error in production |
@@ -247,6 +321,16 @@ After inline validation, show this summary in chat:
 ## Generation Complete: {ModuleName}
 
 Document written to: {doc_output_path}
+Draft source:        {draft_output_path}
+Total draft time:    {draft_generation_seconds}s
+
+Stage breakdown:
+  preflight:          {N}s
+  template-fetch:     {N}s  ({hit | miss})
+  charter-fetch:      {N}s  ({hit | miss})
+  source-extraction:  {N}s
+  assembly:           {N}s
+  write:              {N}s
 
 Inline validation: {✅ PASSED / ❌ FAILED — N errors}
   Warnings: {N} (resolve before production graduation)
@@ -277,8 +361,9 @@ Applies before writing final document (Step 9), independent of validation:
 - [ ] `data_operations`: reads, writes, and side effects covered
 - [ ] All unknowns marked ❓ or DEFERRED with owner
 - [ ] `<!-- akr-generated -->` header present
-- [ ] Draft-only front matter fields absent from final output
+- [ ] Draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`) absent from final output
 - [ ] Excluded sections recorded in draft front matter with reasons
+- [ ] All stage timing metrics captured in draft front matter and surfaced in confirmation prompt
 
 ---
 
