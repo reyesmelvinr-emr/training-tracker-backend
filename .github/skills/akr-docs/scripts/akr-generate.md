@@ -17,6 +17,7 @@ Read `modules.yaml`. Locate the target module.
 
 - If `grouping_status: draft` → stop. Tell the user to approve the grouping first.
 - If module not found → stop. Tell the user to run `/akr-docs groupings` first.
+- If `feature` value matches the all-zero placeholder (e.g. `FN00000_US000`) → do not copy it. Write `feature: ❓ NEEDS real work-item tag` in the output front matter instead.
 
 Infer `project_type` from the module file list:
 
@@ -104,6 +105,7 @@ Generate sections in section plan order using:
 1. `akr:section` directive guidance for field coverage, markers, violations, format
 2. Charter grounding rules from Step 3 forward payload
 3. Targeted template section fetch only when exact format verification is needed
+4. Transparency markers — every AI-inferred statement must include a 🤖 marker inline. Do not emit unmarked AI narrative.
 
 ---
 
