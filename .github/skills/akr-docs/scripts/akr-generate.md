@@ -45,8 +45,7 @@ blocks. Discard the template prose body.** Parse and carry forward:
 - **Section registry:** ordered list of `{id, required, order, condition}` objects
 - **Condition definitions:** token → detection description mapping
 
-If the template cannot be fetched via `@github`, read from
-`~/.akr/templates/templates/` (local AKR cache).
+If the template cannot be fetched via `@github` → report the failure and stop. Templates are not included in the distributed workspace bundle; PATH A (`@github get file`) is required for template access.
 
 ---
 
@@ -61,6 +60,8 @@ allowed `@github` call.
 | `ui-component` | `@github get file core-akr-templates/copilot-instructions/ui-component.instructions.md` |
 | `microservice` | `@github get file core-akr-templates/copilot-instructions/backend-service.instructions.md` |
 | `general` | `@github get file core-akr-templates/copilot-instructions/backend-service.instructions.md` |
+
+If the charter cannot be fetched via `@github` → report the failure and stop. Charters are not included in the distributed workspace bundle; PATH A is required for charter access.
 
 Compress into a forward payload summary (~400 tokens). Carry only:
 - Marker placement rules (🤖 / ❓ / NEEDS / VERIFY / DEFERRED)
