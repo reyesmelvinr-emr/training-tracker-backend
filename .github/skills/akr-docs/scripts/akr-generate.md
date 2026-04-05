@@ -183,7 +183,7 @@ Record `stage_timers.assembly_seconds = now_utc - stage_assembly_start` after al
 Resolve draft path in this order:
 
 1. If module defines `draft_output`, write to that path.
-2. Otherwise default to `docs/modules/.akr/{ModuleName}_draft.md`.
+2. Otherwise use the directory of `doc_output` and write `{ModuleName}_draft.md` in that same directory.
 
 Record `stage_write_start = now_utc` before writing the draft file.
 Compute `draft_generation_seconds = now_utc - generation_started_at` at the time the draft file is written.
