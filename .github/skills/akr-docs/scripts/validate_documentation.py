@@ -36,6 +36,14 @@ PROJECT_TYPE_ENUM = {"api-backend", "ui-component", "microservice", "general"}
 MODULE_STATUS_ENUM = {"draft", "review", "approved", "in-progress", "deprecated"}
 DB_TYPE_ENUM = {"table", "view", "procedure", "function", "schema"}
 DRAFT_ONLY_FRONT_MATTER_FIELDS = {"preview-generated-at", "review-mode"}
+
+# Score fields written by /akr-docs score — must NEVER be in DRAFT_ONLY_FRONT_MATTER_FIELDS.
+SCORE_FRONT_MATTER_FIELDS: frozenset = frozenset({
+    "semantic-score",
+    "semantic-scored-at",
+    "semantic-score-version",
+})
+
 MODULE_REQUIRED_FRONT_MATTER_FIELDS = {
     "businesscapability",
     "feature",
@@ -70,6 +78,8 @@ class ValidationResult:
     valid: bool
     completeness_score: float
     issues: List[ValidationIssue] = field(default_factory=list)
+    semantic_score: Optional[float] = None
+    combined_score: float = 0.0
 
     def error_count(self) -> int:
         return sum(1 for issue in self.issues if issue.severity == "error")
@@ -83,6 +93,11 @@ class ValidationResult:
             "doc_type": self.doc_type,
             "module_name": self.module_name,
             "valid": self.valid,
+            "scores": {
+                "structural": self.completeness_score,
+                "semantic": self.semantic_score,
+                "combined": self.combined_score,
+            },
             "completeness_score": self.completeness_score,
             "error_count": self.error_count(),
             "warning_count": self.warning_count(),
@@ -501,6 +516,76 @@ def _check_module_front_matter(content: str, front_matter: Dict[str, str]) -> Li
     return issues
 
 
+# ---------------------------------------------------------------------------
+# Scoring helpers — semantic score transport from YAML front matter
+# ---------------------------------------------------------------------------
+
+# Template placeholder patterns used by _is_template_placeholder.
+# Pure Python string checks — no LLM call required.
+_PLACEHOLDER_PATTERNS = [
+    "❓",
+    "[module_name]",
+    "[modulename]",
+    "[to be filled]",
+    "[tbd]",
+    "[fill in]",
+    "[pending]",
+    "fn00000_us000",
+]
+
+
+def _is_template_placeholder(content: str) -> bool:
+    """
+    Return True when content is an unchanged template placeholder.
+
+    Checks for:
+    - Bare ❓ marker only (no surrounding text)
+    - Bracket placeholder strings unchanged from template
+    - Empty or whitespace-only content
+    """
+    stripped = content.strip()
+    if not stripped:
+        return True
+    lower = stripped.lower()
+    for pattern in _PLACEHOLDER_PATTERNS:
+        if lower == pattern or lower == pattern.strip("[]"):
+            return True
+    # Bare ❓ marker with no other content
+    if stripped in ("❓", "❓ ", " ❓"):
+        return True
+    return False
+
+
+def _read_semantic_score_from_front_matter(content: str) -> Optional[float]:
+    """
+    Read the semantic-score field from YAML front matter.
+
+    Returns the float value when present and numeric; returns None when
+    the field is absent, empty, or non-numeric.
+    """
+    fields = _extract_front_matter_fields(content)
+    raw = fields.get("semantic-score", "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _compute_combined_score(structural: float, semantic: Optional[float]) -> float:
+    """
+    Compute combined quality score:
+      combined = (structural × 0.4) + (semantic × 0.6)  when semantic is present
+      combined = structural                               when semantic is absent (fallback)
+
+    Weights are a PoC baseline — calibratable after Phase 2 pilot retrospective.
+    """
+    if semantic is None:
+        return round(structural, 2)
+    return round((structural * 0.4) + (semantic * 0.6), 2)
+
+
 def _compute_completeness(required_sections: List[str], issues: List[ValidationIssue]) -> float:
     if not required_sections:
         base = 100.0
@@ -593,6 +678,18 @@ def _validate_single_file(
             issues.append(ValidationIssue("info", "Module override enabled: pass3-override", "pass3-override"))
 
     score = _compute_completeness(required, issues)
+    semantic = _read_semantic_score_from_front_matter(text)
+    combined = _compute_combined_score(score, semantic)
+
+    if semantic is None and doc_type == "module":
+        issues.append(
+            ValidationIssue(
+                "info",
+                "Semantic score not present in front matter. Run '/akr-docs score [ModuleName]' before opening the PR to enable combined scoring. Structural-only score applies.",
+                "semantic-score-absent",
+            )
+        )
+
     valid = all(issue.severity != "error" for issue in issues)
 
     return ValidationResult(
@@ -602,6 +699,8 @@ def _validate_single_file(
         valid=valid,
         completeness_score=score,
         issues=issues,
+        semantic_score=semantic,
+        combined_score=combined,
     )
 
 

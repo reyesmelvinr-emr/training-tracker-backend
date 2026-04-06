@@ -2,7 +2,7 @@
 name: akr-docs
 description: >
   Generate AKR module documentation following charters and templates.
-  Invoke explicitly via /akr-docs [groupings | generate | resolve | refresh-assets] [target-for-generate-or-resolve] [--use-ssg] [--remote] [--template-only] [--charter-only].
+  Invoke explicitly via /akr-docs [groupings | generate | resolve | refresh-assets | score] [target-for-generate-or-resolve] [--use-ssg] [--remote] [--template-only] [--charter-only].
 disable-model-invocation: true
 compatibility:
   models:
@@ -29,6 +29,8 @@ This skill operates in four modes. Load only the script for the requested mode.
 
 Default behavior: load the mode script from the bundled workspace copy under `.github/skills/akr-docs/scripts/`. Use a live remote mode script only when the invocation includes `--remote` (generate/resolve debugging only).
 
+Deterministic output guarantee: for the same codebase and module target, cache hit/miss must not change section plan, required coverage, or metadata key shape. Cache state may change retrieval timings and cache hit/miss flags only.
+
 Prerequisite reminder: for `--remote` runs, start the GitHub MCP server (and confirm GitHub extension auth) before invoking `/akr-docs`. If GitHub MCP is not running, remote mode-script, template, and charter fetches will fail.
 
 Prerequisite reminder for `/akr-docs refresh-assets`: GitHub MCP server must be available because this mode re-fetches templates/charters from the remote source of truth and rewrites local cache entries.
@@ -39,6 +41,7 @@ Prerequisite reminder for `/akr-docs refresh-assets`: GitHub MCP server must be 
 | `/akr-docs generate [ModuleName] [--remote]` | `.github/skills/akr-docs/scripts/akr-generate.md` by default; `@github get file core-akr-templates/.github/skills/akr-docs/scripts/akr-generate.md` only when remote mode-script loading is explicitly forced | modules.yaml approved, generate docs |
 | `/akr-docs resolve [file] [--remote]` | `.github/skills/akr-docs/scripts/akr-resolve.md` by default; `@github get file core-akr-templates/.github/skills/akr-docs/scripts/akr-resolve.md` only when remote mode-script loading is explicitly forced | Draft has unresolved ❓ markers |
 | `/akr-docs refresh-assets [--template-only] [--charter-only]` | `.github/skills/akr-docs/scripts/akr-refresh-assets.md` | Refresh local `.akr/cache/` template/charter assets for all modules |
+| `/akr-docs score [ModuleName]` | `.github/skills/akr-docs/scripts/akr-score.md` | Final doc ready; score content quality before opening PR |
 
 ## PATH Selection for @github Calls
 
@@ -47,6 +50,7 @@ Prerequisite reminder for `/akr-docs refresh-assets`: GitHub MCP server must be 
 - **PATH C (CI / coding-agent):** The GitHub Actions workflow clones `core-akr-templates` to `~/.akr/templates/` during setup. All assets are available from that path on the runner.
 - **`--remote` flag (generate and resolve modes only):** Force PATH A for the mode script, template, and charter fetches. Skip the PATH B workspace copy for the mode script. Use when you need to confirm live core-akr-templates script content before the next distribution cycle.
 - **`refresh-assets` mode switches:** `--template-only` refreshes template cache entries only, `--charter-only` refreshes charter cache entries only, and no switch refreshes both.
+- `refresh-assets` impacts template/charter freshness only. It must not change mode-script routing behavior or document structure contracts.
 
 ## Token Budget Rules (apply across all modes)
 
@@ -62,7 +66,7 @@ Prerequisite reminder for `/akr-docs refresh-assets`: GitHub MCP server must be 
 
 Before loading a mode script, choose the execution lane:
 - If mode is `refresh-assets`: load the mode script from PATH B.
-- If mode is `groupings`, `generate`, or `resolve` and invocation does not include `--remote`: load the mode script from PATH B.
+- If mode is `groupings`, `generate`, `resolve`, or `score` and invocation does not include `--remote`: load the mode script from PATH B.
 - If mode is `groupings`, `generate`, or `resolve` and invocation includes `--remote`: load the mode script from PATH A after a lightweight `@github get file` pre-flight check.
 
 Model pre-flight: if the active chat model is not listed under `compatibility.models`, stop and return a blocking message that names the supported models and asks the user to switch models before re-running `/akr-docs`.
