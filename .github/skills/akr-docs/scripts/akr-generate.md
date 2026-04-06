@@ -133,7 +133,10 @@ Record `stage_timers.source_extraction_seconds = now_utc - stage_source_extracti
 For each section in the section registry (sorted by order):
 - `condition == null` → include
 - `condition != null` → include only if `facts.conditions_detected[condition] == true`
-- Excluded sections → record in draft front matter under `excluded-sections` with reason
+- Excluded sections → record in draft front matter under `excluded-sections` with deterministic reason format:
+  - `section_id — condition=<token>; observed=false`
+  - If exclusion is due to missing source evidence (not condition token), use:
+    - `section_id — insufficient_source_evidence`
 
 ---
 
@@ -146,6 +149,10 @@ Generate sections in section plan order using:
 2. Charter grounding rules from Step 3 forward payload
 3. Targeted template section inspection from already loaded template content when exact format verification is needed
 4. Transparency markers — every AI-inferred statement must include a 🤖 marker inline. Do not emit unmarked AI narrative.
+
+Cache-invariant output rule:
+- Cache hit/miss may change retrieval timings only.
+- Cache hit/miss must NOT change section inclusion/exclusion decisions, required section coverage, metadata key shape, or output style conventions.
 
 ---
 
@@ -208,6 +215,17 @@ passes-completed: {list}
 excluded-sections:
   - "section_id — reason"
 ```
+
+Write `<!-- akr-generated -->` metadata header using canonical key/value formats:
+- `template`: full identity `{owner}/{repo}@{branch}/{path}`
+- `charter`: full identity `{owner}/{repo}@{branch}/{path}`
+- `steps-completed`: comma-separated ascending sequence, exact format: `1, 2, 3, 4, 5, 6, 7, 8, 9`
+- `generation-strategy`: `single-pass` or `section-scoped`
+- `passes-completed`: `single` for single-pass, else comma-separated pass IDs (e.g., `1, 2A, 2B, 3, 4, 5, 6, 7`)
+- `pass-timings-seconds`: fixed-order key/value list: `preflight=<N> | template-fetch=<N> | charter-fetch=<N> | source-extraction=<N> | assembly=<N> | write=<N>`
+- `total-generation-seconds`: integer
+
+Do not emit short template/charter names (e.g., `lean_baseline_service_template_module.md`) in final metadata when full identity is available.
 Record `stage_timers.write_seconds = now_utc - stage_write_start` after the file is written and add to the `stage-timings` block above.
 
 Surface draft path in chat and include this confirmation prompt payload:
@@ -217,6 +235,10 @@ Surface draft path in chat and include this confirmation prompt payload:
 - Stage breakdown: `preflight {N}s | template-fetch {N}s ({hit|miss}) | charter-fetch {N}s ({hit|miss}) | source-extraction {N}s | assembly {N}s | write {N}s`
 
 If `draft_output_path` and `doc_output_path` differ, explicitly warn that finalize will promote content to a different path.
+
+Determinism check before confirmation prompt:
+- Verify metadata shape is canonical (same keys/order/format regardless of cache hit/miss).
+- Verify `excluded-sections` entries follow deterministic reason format.
 
 Wait for explicit user confirmation before Step 9.
 
@@ -345,6 +367,12 @@ Next step: Open a PR. Full CI validation runs automatically and will check:
 {If FAILED}
 Fix required before PR:
   {list errors with line references}
+
+Metadata snapshot (canonical):
+  template:           {owner}/{repo}@{branch}/{template_path}
+  charter:            {owner}/{repo}@{branch}/{charter_path}
+  steps-completed:    1, 2, 3, 4, 5, 6, 7, 8, 9
+  passes-completed:   {single | pass list}
 ```
 
 ---

@@ -70,7 +70,22 @@ REQUIRED_FRONT_MATTER_FIELDS = frozenset({
 })
 
 # Draft-only fields that must not appear in final output
-DRAFT_ONLY_FIELDS = frozenset({"preview-generated-at", "review-mode"})
+DRAFT_ONLY_FIELDS = frozenset({
+    "preview-generated-at",
+    "generation-started-at",
+    "draft-generation-seconds",
+    "stage-timings",
+    "review-mode",
+})
+
+# Score fields written by /akr-docs score before PR.
+# CRITICAL: These fields MUST NOT be added to DRAFT_ONLY_FIELDS.
+# Adding them there would silently discard the score on every final commit.
+SCORE_FRONT_MATTER_FIELDS = frozenset({
+    "semantic-score",
+    "semantic-scored-at",
+    "semantic-score-version",
+})
 
 # ---------------------------------------------------------------------------
 # BASELINE required sections — used when no akr:section directives are found.
@@ -280,6 +295,89 @@ def _check_metadata_header(content: str) -> List[Dict]:
     }]
 
 
+def _extract_akr_generated_block(content: str) -> Optional[str]:
+    m = re.search(r"<!--\s*akr-generated\b(.*?)-->", content, re.DOTALL)
+    if not m:
+        return None
+    return m.group(1)
+
+
+def _parse_metadata_pairs(block: str) -> Dict[str, str]:
+    pairs: Dict[str, str] = {}
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        pairs[k.strip().lower()] = v.strip()
+    return pairs
+
+
+def _check_metadata_canonical_format(content: str) -> List[Dict]:
+    issues: List[Dict] = []
+    block = _extract_akr_generated_block(content)
+    if not block:
+        return issues
+
+    pairs = _parse_metadata_pairs(block)
+
+    # template/charter should carry full identity form: owner/repo@branch/path
+    template_val = pairs.get("template", "")
+    if template_val and ("@" not in template_val or "/" not in template_val):
+        issues.append({
+            "severity": "warning",
+            "rule": "metadata-format",
+            "message": (
+                "template should use full identity format owner/repo@branch/path; "
+                "short template names reduce traceability."
+            ),
+            "line": None,
+        })
+
+    charter_val = pairs.get("charter", "")
+    if charter_val and ("@" not in charter_val or "/" not in charter_val):
+        issues.append({
+            "severity": "warning",
+            "rule": "metadata-format",
+            "message": (
+                "charter should use full identity format owner/repo@branch/path; "
+                "short charter names reduce traceability."
+            ),
+            "line": None,
+        })
+
+    steps_val = pairs.get("steps-completed", "")
+    if steps_val and not re.fullmatch(r"\d+(,\s*\d+)*", steps_val):
+        issues.append({
+            "severity": "warning",
+            "rule": "metadata-format",
+            "message": (
+                "steps-completed should be comma-separated ascending integers "
+                "(e.g., '1, 2, 3, 4, 5, 6, 7, 8, 9')."
+            ),
+            "line": None,
+        })
+
+    if "pass-timings-seconds" not in pairs:
+        issues.append({
+            "severity": "warning",
+            "rule": "metadata-format",
+            "message": "pass-timings-seconds missing from akr-generated metadata header.",
+            "line": None,
+        })
+
+    total_val = pairs.get("total-generation-seconds", "")
+    if total_val and not re.fullmatch(r"\d+", total_val):
+        issues.append({
+            "severity": "warning",
+            "rule": "metadata-format",
+            "message": "total-generation-seconds should be an integer.",
+            "line": None,
+        })
+
+    return issues
+
+
 def _check_required_sections(content: str) -> List[Dict]:
     """
     Check that all required sections are present.
@@ -403,6 +501,7 @@ def validate_file(
     issues: List[Dict] = []
     issues.extend(_check_front_matter(content, front_matter, fm_found, is_final))
     issues.extend(_check_metadata_header(content))
+    issues.extend(_check_metadata_canonical_format(content))
     issues.extend(_check_required_sections(content))
     issues.extend(_check_transparency_markers(content, effective_compliance))
 
