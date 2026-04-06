@@ -1,0 +1,37 @@
+{
+  "object_name": "EnrollmentStatus",
+  "schema": "training",
+  "object_type": "table",
+  "description": "Defines the available enrollment status values.",
+  "primary_key": {
+    "columns": [
+      "StatusId"
+    ]
+  },
+  "unique_constraints": [
+    {
+      "columns": [
+        "Code"
+      ]
+    }
+  ],
+  "columns": [
+    {
+      "name": "StatusId",
+      "data_type": "small_integer",
+      "required": true
+    },
+    {
+      "name": "Code",
+      "data_type": "text",
+      "required": true,
+      "max_length": 32
+    },
+    {
+      "name": "DisplayName",
+      "data_type": "text",
+      "required": true,
+      "max_length": 64
+    }
+  ]
+}

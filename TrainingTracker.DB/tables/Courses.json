@@ -1,0 +1,57 @@
+{
+  "object_name": "Courses",
+  "schema": "training",
+  "object_type": "table",
+  "description": "Stores the master list of training courses.",
+  "primary_key": {
+    "columns": [
+      "Id"
+    ]
+  },
+  "columns": [
+    {
+      "name": "Id",
+      "data_type": "unique_identifier",
+      "required": true,
+      "default_behavior": "system-generated sequential identifier"
+    },
+    {
+      "name": "Title",
+      "data_type": "text",
+      "required": true,
+      "max_length": 200
+    },
+    {
+      "name": "Description",
+      "data_type": "long_text",
+      "required": false,
+      "max_length": "unbounded"
+    },
+    {
+      "name": "IsRequired",
+      "data_type": "boolean",
+      "required": true,
+      "default_value": false
+    },
+    {
+      "name": "IsActive",
+      "data_type": "boolean",
+      "required": true,
+      "default_value": true
+    },
+    {
+      "name": "ValidityMonths",
+      "data_type": "integer",
+      "required": false
+    },
+    {
+      "name": "Category",
+      "data_type": "text",
+      "required": false,
+      "max_length": 100
+    }
+  ],
+  "rules": [
+    "Title must contain at least one non-space character."
+  ]
+}

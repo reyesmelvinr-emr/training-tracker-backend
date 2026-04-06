@@ -1,0 +1,54 @@
+{
+  "object_name": "Enrollments",
+  "schema": "training",
+  "object_type": "table",
+  "description": "Stores a user's enrollment record for a course.",
+  "primary_key": {
+    "columns": [
+      "Id"
+    ]
+  },
+  "relationships": [
+    {
+      "column": "CourseId",
+      "references": "Courses.Id",
+      "delete_behavior": "dependent rows removed when parent course is removed"
+    },
+    {
+      "column": "UserId",
+      "references": "Users.Id",
+      "delete_behavior": "dependent rows removed when parent user is removed"
+    }
+  ],
+  "columns": [
+    {
+      "name": "Id",
+      "data_type": "unique_identifier",
+      "required": true,
+      "default_behavior": "system-generated sequential identifier"
+    },
+    {
+      "name": "CourseId",
+      "data_type": "unique_identifier",
+      "required": true
+    },
+    {
+      "name": "UserId",
+      "data_type": "unique_identifier",
+      "required": true
+    },
+    {
+      "name": "Status",
+      "data_type": "text",
+      "required": true,
+      "max_length": 50,
+      "default_value": "PENDING",
+      "allowed_values": [
+        "PENDING",
+        "ACTIVE",
+        "COMPLETED",
+        "CANCELLED"
+      ]
+    }
+  ]
+}

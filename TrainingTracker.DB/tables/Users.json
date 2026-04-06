@@ -1,0 +1,51 @@
+{
+  "object_name": "Users",
+  "schema": "training",
+  "object_type": "table",
+  "description": "Stores users who can be assigned to training.",
+  "primary_key": {
+    "columns": [
+      "Id"
+    ]
+  },
+  "unique_constraints": [
+    {
+      "columns": [
+        "Email"
+      ]
+    }
+  ],
+  "columns": [
+    {
+      "name": "Id",
+      "data_type": "unique_identifier",
+      "required": true,
+      "default_behavior": "system-generated sequential identifier"
+    },
+    {
+      "name": "Email",
+      "data_type": "text",
+      "required": true,
+      "max_length": 256,
+      "format_rule": "must follow a basic email pattern"
+    },
+    {
+      "name": "FirstName",
+      "data_type": "text",
+      "required": true,
+      "max_length": 128
+    },
+    {
+      "name": "LastName",
+      "data_type": "text",
+      "required": true,
+      "max_length": 128
+    },
+    {
+      "name": "IsActive",
+      "data_type": "boolean",
+      "required": true,
+      "default_value": true
+    }
+  ]
+}

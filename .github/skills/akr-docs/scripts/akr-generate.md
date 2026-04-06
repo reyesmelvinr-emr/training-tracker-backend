@@ -219,7 +219,7 @@ excluded-sections:
 Write `<!-- akr-generated -->` metadata header using canonical key/value formats:
 - `template`: full identity `{owner}/{repo}@{branch}/{path}`
 - `charter`: full identity `{owner}/{repo}@{branch}/{path}`
-- `steps-completed`: comma-separated ascending sequence, exact format: `1, 2, 3, 4, 5, 6, 7, 8, 9`
+- `steps-completed`: comma-separated ascending sequence, exact format: `1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12`
 - `generation-strategy`: `single-pass` or `section-scoped`
 - `passes-completed`: `single` for single-pass, else comma-separated pass IDs (e.g., `1, 2A, 2B, 3, 4, 5, 6, 7`)
 - `pass-timings-seconds`: fixed-order key/value list: `preflight=<N> | template-fetch=<N> | charter-fetch=<N> | source-extraction=<N> | assembly=<N> | write=<N>`
@@ -328,14 +328,97 @@ errors surfaced here (missing front matter, missing header, missing required
 sections) are the same ones that will fail CI — catching them now avoids a
 failed PR round-trip.
 
-**If inline validation passes:** Surface the result in chat and instruct the
-user to open a PR. The full CI pipeline (`validate-documentation.yml`) runs
-automatically on PR open and provides the complete validation report including
-Vale, completeness scoring, and modules.yaml cross-checks.
+**If inline validation passes:** Proceed directly to Step 11 (auto-score), which
+runs in this same session. The Step 12 summary will then instruct the user to open
+a PR. The full CI pipeline (`validate-documentation.yml`) runs automatically on PR
+open and provides the complete validation report including Vale, completeness
+scoring, and modules.yaml cross-checks.
 
 ---
 
-## Step 11: Surface Result to User
+## Step 11: Auto-Score (runs only when Step 10 passes with 0 errors)
+
+Gate: proceed only if Step 10 inline validation exits with 0 errors. If
+validation failed, skip this step entirely and go to Step 12.
+
+This scoring step runs in the same Copilot session as generation — zero
+additional LLM API cost beyond the current session.
+
+**Evaluate sections:**
+
+1. Scan the final document for `akr:section` HTML comment directive blocks.
+2. For each directive block, extract `authorship` and `human_columns`.
+3. Score sections:
+   - `authorship: human` → evaluate full section content
+   - `authorship: mixed` → evaluate only the `human_columns` content
+   - `authorship: ai` → skip
+4. If no `akr:section` directives found, apply the default scoring policy:
+   score Quick Reference (TL;DR), Purpose and Scope, Business Rules
+   (`why_it_exists` and `since_when` columns), and Questions & Gaps if present.
+
+**Rubric (0–10 per section):**
+
+| Score | Tier | Criteria |
+|-------|------|----------|
+| 0–2 | Template placeholder | Content unchanged from template; bare ❓ with no additional text |
+| 3–4 | Generic | Content present but applies to any module; no domain-specific context |
+| 5–6 | Acknowledged gap | Explicitly notes what is unknown or deferred — **rewarded** |
+| 7–8 | Substantive | Module-specific business context evident; minor gaps acceptable |
+| 9–10 | Complete | Genuine domain knowledge; no template filler; all sub-fields populated |
+
+**Section weights:**
+
+| Section | Weight |
+|---------|--------|
+| Business Rules | 2.0 |
+| Quick Reference (TL;DR) | 1.5 |
+| Purpose and Scope | 1.5 |
+| Questions & Gaps | 1.0 |
+| All other human-authored sections | 1.0 |
+
+**Compute score:**
+
+```
+semantic_score = round(sum(section_score × weight) / sum(weight) × 10)  # 0–100
+```
+
+**Display per-section summary in chat:**
+
+```
+AKR Semantic Score — {ModuleName}
+────────────────────────────────────────────────
+Section                   Score  Tier              Weight
+Quick Reference (TL;DR)   ?/10   ?                 1.5
+Purpose and Scope         ?/10   ?                 1.5
+Business Rules            ?/10   ?                 2.0
+Questions & Gaps          ?/10   ?                 1.0
+────────────────────────────────────────────────
+Semantic Score: ?/100
+────────────────────────────────────────────────
+Write score to front matter? Reply "yes" to continue or "skip" to proceed without scoring.
+```
+
+**On "yes":** Write these three fields into the document's YAML front matter in-place:
+
+```yaml
+semantic-score: {integer 0–100}
+semantic-scored-at: "{ISO 8601 timestamp}"
+semantic-score-version: "v1.0"
+```
+
+Do NOT modify any other part of the document. Confirm in chat:
+"Semantic score written to {doc_output_path}."
+
+**On "skip":** CI will emit a warning that no semantic score is present but will
+not block merge.
+
+**SAFETY:** Never add `semantic-score`, `semantic-scored-at`, or
+`semantic-score-version` to `DRAFT_ONLY_FIELDS` in `akr_inline_validate.py`.
+These fields must survive through PR and merge.
+
+---
+
+## Step 12: Surface Result to User
 
 After inline validation, show this summary in chat:
 
@@ -357,6 +440,8 @@ Stage breakdown:
 Inline validation: {✅ PASSED / ❌ FAILED — N errors}
   Warnings: {N} (resolve before production graduation)
 
+Semantic score:     {N}/100 ({tier}) | skipped
+
 {If PASSED}
 Next step: Open a PR. Full CI validation runs automatically and will check:
   - Vale prose linting
@@ -371,7 +456,7 @@ Fix required before PR:
 Metadata snapshot (canonical):
   template:           {owner}/{repo}@{branch}/{template_path}
   charter:            {owner}/{repo}@{branch}/{charter_path}
-  steps-completed:    1, 2, 3, 4, 5, 6, 7, 8, 9
+  steps-completed:    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
   passes-completed:   {single | pass list}
 ```
 
@@ -390,6 +475,7 @@ Applies before writing final document (Step 9), independent of validation:
 - [ ] All unknowns marked ❓ or DEFERRED with owner
 - [ ] `<!-- akr-generated -->` header present
 - [ ] Draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`) absent from final output
+- [ ] Score front matter fields (`semantic-score`, `semantic-scored-at`, `semantic-score-version`) present if scoring was not skipped
 - [ ] Excluded sections recorded in draft front matter with reasons
 - [ ] All stage timing metrics captured in draft front matter and surfaced in confirmation prompt
 

@@ -1,0 +1,47 @@
+{
+  "object_name": "CourseEnrollmentSummary",
+  "schema": "training",
+  "object_type": "view",
+  "description": "Returns one summary row per course with enrollment counts.",
+  "source_objects": [
+    "Courses",
+    "Enrollments"
+  ],
+  "grain": "one row per course",
+  "fields": [
+    {
+      "name": "CourseId",
+      "data_type": "unique_identifier",
+      "required": true,
+      "source": "Courses.Id"
+    },
+    {
+      "name": "Title",
+      "data_type": "text",
+      "required": true,
+      "max_length": 200,
+      "source": "Courses.Title"
+    },
+    {
+      "name": "Total",
+      "data_type": "integer",
+      "required": true,
+      "derivation": "count of enrollment records linked to the course"
+    },
+    {
+      "name": "ActiveCount",
+      "data_type": "integer",
+      "required": true,
+      "derivation": "count of enrollment records where Status is ACTIVE"
+    },
+    {
+      "name": "CompletedCount",
+      "data_type": "integer",
+      "required": true,
+      "derivation": "count of enrollment records where Status is COMPLETED"
+    }
+  ],
+  "behavior": {
+    "includes_courses_with_no_enrollments": true
+  }
+}

@@ -7,12 +7,8 @@
 
 modules:
   - name: Course
-    businessCapability: CourseManagement
-    feature: FN00000_US000
-    project_type: api-backend
-    status: approved
-    compliance_mode: pilot
-    max_files: 6
+    grouping_status: approved
+    doc_output: docs/services/Course_doc.md
     files:
       - TrainingTracker.Api/Controllers/CoursesController.cs
       - TrainingTracker.Api/Domain/Services/ICourseService.cs
@@ -20,15 +16,10 @@ modules:
       - TrainingTracker.Api/Infrastructure/Persistence/EfCourseRepository.cs
       - TrainingTracker.Api/Contracts/Courses/CourseDtos.cs
       - TrainingTracker.Api/Domain/Entities/Course.cs
-    doc_output: docs/services/Course_doc.md
 
   - name: Enrollment
-    businessCapability: EnrollmentProcess
-    feature: FN00000_US000
-    project_type: api-backend
-    status: approved
-    compliance_mode: pilot
-    max_files: 6
+    grouping_status: approved
+    doc_output: docs/services/Enrollment_doc.md
     files:
       - TrainingTracker.Api/Controllers/EnrollmentsController.cs
       - TrainingTracker.Api/Domain/Services/IEnrollmentService.cs
@@ -36,15 +27,10 @@ modules:
       - TrainingTracker.Api/Infrastructure/Persistence/EfEnrollmentRepository.cs
       - TrainingTracker.Api/Contracts/Enrollments/EnrollmentDtos.cs
       - TrainingTracker.Api/Domain/Entities/Enrollment.cs
-    doc_output: docs/services/Enrollment_doc.md
 
   - name: User
-    businessCapability: UserManagement
-    feature: FN00000_US000
-    project_type: api-backend
-    status: approved
-    compliance_mode: pilot
-    max_files: 6
+    grouping_status: approved
+    doc_output: docs/services/User_doc.md
     files:
       - TrainingTracker.Api/Controllers/UsersController.cs
       - TrainingTracker.Api/Domain/Services/IUserService.cs
@@ -52,27 +38,17 @@ modules:
       - TrainingTracker.Api/Infrastructure/Persistence/EfUserRepository.cs
       - TrainingTracker.Api/Contracts/Users/UserDtos.cs
       - TrainingTracker.Api/Domain/Entities/User.cs
-    doc_output: docs/services/User_doc.md
 
   - name: Admin
-    businessCapability: AdminControls
-    feature: FN00000_US000
-    project_type: api-backend
-    status: approved
-    compliance_mode: pilot
-    max_files: 2
+    grouping_status: approved
+    doc_output: docs/services/Admin_doc.md
     files:
       - TrainingTracker.Api/Controllers/AdminController.cs
       - TrainingTracker.Api/Contracts/Admin/AdminDtos.cs
-    doc_output: docs/services/Admin_doc.md
 
   - name: Runtime
-    businessCapability: AuditLogging
-    feature: FN00000_US000
-    project_type: api-backend
-    status: draft
-    compliance_mode: pilot
-    max_files: 6
+    grouping_status: draft
+    doc_output: docs/services/Runtime_doc.md
     files:
       - TrainingTracker.Api/Program.cs
       - TrainingTracker.Api/Infrastructure/Persistence/TrainingTrackerDbContext.cs
@@ -80,12 +56,11 @@ modules:
       - TrainingTracker.Api/Middleware/CorrelationIdMiddleware.cs
       - TrainingTracker.Api/Middleware/ExceptionHandlingMiddleware.cs
       - TrainingTracker.Api/Contracts/Health/HealthResponse.cs
-    doc_output: docs/services/Runtime_doc.md
 
 database_objects: []
 
 unassigned:
   - path: TrainingTracker.Api/WeatherForecast.cs
-    reason: Sample scaffold type not part of the training domain modules.
+    reason: Sample scaffold, recommend deletion
   - path: TrainingTracker.Api/Controllers/WeatherForecastController.cs
-    reason: Sample scaffold controller not aligned to a business capability module.
+    reason: Sample scaffold, recommend deletion

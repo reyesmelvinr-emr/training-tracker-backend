@@ -1,0 +1,40 @@
+{
+  "object_name": "CoursePrerequisites",
+  "schema": "training",
+  "object_type": "table",
+  "description": "Maps a course to one required prerequisite course.",
+  "primary_key": {
+    "columns": [
+      "CourseId",
+      "PrerequisiteId"
+    ]
+  },
+  "relationships": [
+    {
+      "column": "CourseId",
+      "references": "Courses.Id",
+      "delete_behavior": "dependent rows removed when parent course is removed"
+    },
+    {
+      "column": "PrerequisiteId",
+      "references": "Courses.Id",
+      "delete_behavior": "no automatic removal defined"
+    }
+  ],
+  "columns": [
+    {
+      "name": "CourseId",
+      "data_type": "unique_identifier",
+      "required": true
+    },
+    {
+      "name": "PrerequisiteId",
+      "data_type": "unique_identifier",
+      "required": true
+    }
+  ],
+  "rules": [
+    "CourseId and PrerequisiteId must be different values.",
+    "The combination of CourseId and PrerequisiteId must be unique."
+  ]
+}
