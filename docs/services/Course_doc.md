@@ -41,7 +41,7 @@ Manages the full lifecycle of training course records — create, read, update, 
 ❓ [HUMAN: Cite the specific business outcome this module enables — e.g., "allows L&D administrators to maintain the course catalog used during employee onboarding enrollment."]
 
 **When to use it:**  
-❓ [HUMAN: Name the actual caller — which UI page, background job, or specific API client invokes these endpoints? Do not infer from module name alone.]
+When there are needed changes to the list of courses available
 
 **Watch out for:**  
 ❓ [HUMAN: Cite a specific code path or scenario operators should know about. Note: `CreatedUtc` on the `Course` entity is marked `[NotMapped]` and is not persisted to the database — records retrieved by `GetAsync` after initial creation will return `DateTime.MinValue` for this field. Confirm whether this is intentional or a gap requiring a DB schema migration.]
