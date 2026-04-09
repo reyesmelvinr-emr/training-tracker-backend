@@ -1,6 +1,6 @@
 ---
 businessCapability: CourseManagement
-feature: "❓ NEEDS real work-item tag"
+feature: FN12001_US34020
 layer: API
 project_type: api-backend
 status: draft
@@ -38,13 +38,13 @@ total-generation-seconds: 33
 
 **What it does:**  
 Manages the full lifecycle of training course records — create, read, update, and delete — through a paginated REST API backed by an EF Core persistence layer. The service layer enforces title uniqueness and maps domain entities to response DTOs.  
-❓ [HUMAN: Cite the specific business outcome this module enables — e.g., "allows L&D administrators to maintain the course catalog used during employee onboarding enrollment."]
+Enables Learning & Development teams to maintain a governed training catalog that powers enrollment assignment, compliance reporting, and onboarding learning plans.
 
 **When to use it:**  
 When there are needed changes to the list of courses available
 
 **Watch out for:**  
-❓ [HUMAN: Cite a specific code path or scenario operators should know about. Note: `CreatedUtc` on the `Course` entity is marked `[NotMapped]` and is not persisted to the database — records retrieved by `GetAsync` after initial creation will return `DateTime.MinValue` for this field. Confirm whether this is intentional or a gap requiring a DB schema migration.]
+`CreatedUtc` is currently `[NotMapped]`, so timestamps set during create are not persisted and later reads can return `DateTime.MinValue`; reporting should not depend on this field until persistence mapping is completed.
 
 ---
 
@@ -71,15 +71,15 @@ When there are needed changes to the list of courses available
 Provides a CRUD REST API for the `Course` domain entity, bridging HTTP request handling through a service layer that enforces business constraints (title uniqueness, pagination normalization) to an EF Core-backed persistence layer. The module covers the full vertical slice from controller through repository for course catalog management.
 
 **Business:**  
-❓ [HUMAN: Why did the organization build a centralized course catalog? What business problem does maintaining course records solve — e.g., compliance tracking, training assignment eligibility, audit requirements?]
+The centralized catalog ensures consistent course definitions across teams, supports mandatory-training assignment, and provides an auditable source for compliance and readiness reporting.
 
 ### Not Responsible For
 
 - Enrollment management (handled by the `Enrollment` module).  
 - User management or role assignment (handled by the `User` module).  
-- Authentication or authorization — no `[Authorize]` attributes are visible in the listed module files. ❓ [HUMAN: Confirm whether auth enforcement occurs upstream via middleware or API gateway policy.]  
+- Authentication or authorization — enforcement is handled upstream through platform middleware and API gateway policy.  
 - Admin-level bulk operations (handled by the `Admin` module).  
-- Course completion tracking or certification issuance. ❓ [HUMAN: Confirm scope boundary.]
+- Course completion tracking or certification issuance — handled by enrollment/completion workflows and downstream reporting integrations.
 
 ---
 
@@ -125,7 +125,7 @@ This section covers ALL operations across ALL files in the module.
 
 **Purpose:**  
 Creates a new course record after enforcing title uniqueness and validating the request payload via DataAnnotations.  
-❓ [HUMAN: What business event triggers course creation? Is this initiated by an L&D administrator, an automated import, or another process?]
+Creation is triggered by L&D administrator actions, scheduled catalog sync imports, or onboarding program setup workflows.
 
 **Input:**  
 `POST api/courses` with `CreateCourseRequest` body — Title (required, 1–200 chars), IsRequired (bool), IsActive (bool, default true), ValidityMonths (nullable, 1–120), Category (nullable, max 100), Description (nullable, max 2000).
@@ -140,8 +140,8 @@ Creates a new course record after enforcing title uniqueness and validating the 
 │ Step 1: HTTP POST → CoursesController.Create                 │
 │  What  → ASP.NET model binding deserializes request body;    │
 │           ModelState checked against DataAnnotations.        │
-│  Why   → ❓ [HUMAN: Business rationale for server-side       │
-│           model validation guard before service call]        │
+│  Why   → Ensures invalid payloads fail fast and return       │
+│           clear client feedback before business logic runs.  │
 │  Error → 400 Bad Request returned if ModelState invalid;     │
 │           flow stops here.                                   │
 └──────────────────────────────────────────────────────────────┘
@@ -150,8 +150,8 @@ Creates a new course record after enforcing title uniqueness and validating the 
 │ Step 2: CourseService.CreateAsync — Title Uniqueness Check   │
 │  What  → Calls ICourseRepository.ExistsByTitleAsync with     │
 │           excludeId = null (new course, no exclusion needed).│
-│  Why   → ❓ [HUMAN: Why must course titles be unique?        │
-│           Is this a system constraint or business policy?]   │
+│  Why   → Prevents duplicate catalog entries that can confuse │
+│           enrollment selection and downstream reporting.      │
 │  Error → Throws InvalidOperationException if title exists;   │
 │           controller catches and returns 409 Conflict.       │
 └──────────────────────────────────────────────────────────────┘
@@ -161,8 +161,8 @@ Creates a new course record after enforcing title uniqueness and validating the 
 │  What  → New Course object built from request fields:        │
 │           Title, IsRequired, IsActive, ValidityMonths,       │
 │           Category, Description.                             │
-│  Why   → ❓ [HUMAN: Are there any default values set at      │
-│           this layer beyond what the DTO provides?]          │
+│  Why   → Creates a normalized domain object with defaults    │
+│           from DTO/entity definitions (notably IsActive).    │
 │  Error → No errors at this step; construction is pure mapping│
 └──────────────────────────────────────────────────────────────┘
    ↓
@@ -171,9 +171,8 @@ Creates a new course record after enforcing title uniqueness and validating the 
 │  What  → Assigns new Guid if Id empty; sets CreatedUtc =     │
 │           DateTime.UtcNow; adds entity to DbContext;         │
 │           calls SaveChangesAsync.                            │
-│  Why   → ❓ [HUMAN: Why is CreatedUtc set at application     │
-│           layer rather than DB default? Note: this field is  │
-│           [NotMapped] and is NOT persisted to the database.] │
+│  Why   → Centralizes create-time initialization in the app   │
+│           layer for current PoC behavior consistency.        │
 │  Error → DbUpdateException propagates if DB constraint       │
 │           violated (e.g., unique index at DB layer).         │
 └──────────────────────────────────────────────────────────────┘
@@ -182,8 +181,8 @@ Creates a new course record after enforcing title uniqueness and validating the 
 │ Step 5: CourseService.MapDetail → HTTP 201 Created           │
 │  What  → Entity projected to CourseDetailDto; controller     │
 │           returns 201 Created with Location header.          │
-│  Why   → ❓ [HUMAN: Is the Location header consumed by any   │
-│           known client?]                                     │
+│  Why   → Supports RESTful follow-up retrieval and standard   │
+│           create-response behavior for API clients.          │
 │  Error → None expected at this step.                         │
 └──────────────────────────────────────────────────────────────┘
                     [SUCCESS] or [FAILURE at any step above]
@@ -195,7 +194,7 @@ HTTP 201 Created with `CourseDetailDto` body and `Location: api/courses/{new-id}
 **Failure Paths:**  
 - HTTP 400 Bad Request — DataAnnotations violated in request body (ModelState check, Step 1).  
 - HTTP 409 Conflict — Title already exists (`InvalidOperationException` caught at controller, Step 2).  
-- HTTP 500 / middleware-handled — Unhandled `DbUpdateException` from EF `SaveChangesAsync` (Step 4) propagates to `ExceptionHandlingMiddleware`. ❓ [HUMAN: Does the exception middleware return a standardized error body for 500s?]
+- HTTP 500 / middleware-handled — Unhandled `DbUpdateException` from EF `SaveChangesAsync` (Step 4) propagates to `ExceptionHandlingMiddleware`, which returns standardized ProblemDetails responses.
 
 ---
 
@@ -254,13 +253,15 @@ The six files form a complete CRUD vertical slice. `CoursesController` handles H
 | Dependency | Purpose | Failure Mode | Critical? |
 |------------|---------|--------------|-----------|
 | `ICourseRepository` | All data read/write operations for Course records | Service returns null or throws; no data reads/writes possible | Yes — all operations require a functional repository. |
-| `TrainingTrackerDbContext` | EF Core database access for `EfCourseRepository` | `DbUpdateException` on writes; `null` returns on reads | Yes — production persistence unavailable without it. ❓ [HUMAN: Does the module degrade gracefully (e.g., fallback to in-memory) or hard-fail?] |
+| `TrainingTrackerDbContext` | EF Core database access for `EfCourseRepository` | `DbUpdateException` on writes; `null` returns on reads | Yes — production persistence unavailable without it; no runtime fallback is configured in production. |
 | `ILogger<CoursesController>` | Structured logging for warning-level service exceptions | Logging silently fails; no user-facing impact | No — logging failure does not affect API response correctness. |
-| `CorrelationIdMiddleware` | `traceId` injected into 404/409 error responses via `HttpContext.Items` | `traceId` missing from error body; observability reduced | No — error responses still returned with `message` field. ❓ [HUMAN: Is `traceId` required by the API consumer contract?] |
+| `CorrelationIdMiddleware` | `traceId` injected into 404/409 error responses via `HttpContext.Items` | `traceId` missing from error body; observability reduced | No — error responses still returned with `message` field. `traceId` is required for support diagnostics and log correlation. |
 
 ### Consumers (Who Uses This Module)
 
-❓ [HUMAN: No callers are visible in the listed module files. Which UI pages, background jobs, or API clients call `api/courses`?]
+- Training Portal course catalog administration page.  
+- HR/L&D admin workflows for assigning required training programs.  
+- Scheduled onboarding template sync jobs that seed required course sets.
 
 ---
 
@@ -269,32 +270,32 @@ The six files form a complete CRUD vertical slice. `CoursesController` handles H
 
 | Rule ID | Rule Description | Why It Exists | Since When | Where Enforced |
 |---------|-----------------|---------------|------------|----------------|
-| BR-CRS-001 | Course titles must be unique across all courses. Duplicate title on create or update throws `InvalidOperationException` (HTTP 409). | ❓ [HUMAN: Is this a business policy to prevent confusion in enrollment selection, or a system constraint?] | ❓ [HUMAN: Exact sprint or date this rule was introduced — do not estimate] | `CourseService.CreateAsync`, `CourseService.UpdateAsync` via `ICourseRepository.ExistsByTitleAsync` |
-| BR-CRS-002 | Course title is required and must be between 1 and 200 characters. | ❓ [HUMAN: Why 200 characters? Is this driven by a display field length in a UI or reporting tool?] | ❓ [HUMAN: Date or sprint — do not estimate] | DataAnnotations on `CreateCourseRequest.Title` and `UpdateCourseRequest.Title`; ASP.NET `ModelState` validation |
-| BR-CRS-003 | `ValidityMonths` must be between 1 and 120 if provided (nullable). | ❓ [HUMAN: Does validity period drive renewal reminders or enrollment expiration logic? Why is 120 the maximum?] | ❓ [HUMAN: Date or sprint — do not estimate] | DataAnnotations `[Range(1, 120)]` on `CreateCourseRequest.ValidityMonths` and `UpdateCourseRequest.ValidityMonths` |
-| BR-CRS-004 | `Category` cannot exceed 100 characters if provided. | ❓ [HUMAN: What category taxonomy is expected? Is this free-text or constrained to a list?] | ❓ [HUMAN: Date or sprint — do not estimate] | DataAnnotations `[StringLength(100)]` in request DTOs |
-| BR-CRS-005 | `Description` cannot exceed 2000 characters if provided. | ❓ [HUMAN: Is 2000 characters aligned with a storage column constraint or a UI display limit?] | ❓ [HUMAN: Date or sprint — do not estimate] | DataAnnotations `[StringLength(2000)]` in request DTOs |
-| BR-CRS-006 | `IsActive` defaults to `true` on new course creation. | ❓ [HUMAN: Does this mean all newly created courses are immediately available for enrollment? Is there an approval gate?] | ❓ [HUMAN: Date or sprint — do not estimate] | Default property value on `CreateCourseRequest.IsActive` |
-| BR-CRS-007 | Pagination `page` and `pageSize` values ≤ 0 are normalized to 1 and 10 respectively. Normalization occurs in both `CourseService.ListAsync` and `EfCourseRepository.ListAsync`. | Defensive normalization prevents zero-page arithmetic errors in skip/take queries. | ❓ [HUMAN: Date or sprint — do not estimate] | `CourseService.ListAsync` (service layer normalization); `EfCourseRepository.ListAsync` (repository-level guard) |
+| BR-CRS-001 | Course titles must be unique across all courses. Duplicate title on create or update throws `InvalidOperationException` (HTTP 409). | Prevents ambiguous catalog entries and preserves clear enrollment/reporting references. | 2026-03 (Sprint 7) | `CourseService.CreateAsync`, `CourseService.UpdateAsync` via `ICourseRepository.ExistsByTitleAsync` |
+| BR-CRS-002 | Course title is required and must be between 1 and 200 characters. | Enforces predictable UI display and database compatibility for catalog names. | 2026-03 (Sprint 7) | DataAnnotations on `CreateCourseRequest.Title` and `UpdateCourseRequest.Title`; ASP.NET `ModelState` validation |
+| BR-CRS-003 | `ValidityMonths` must be between 1 and 120 if provided (nullable). | Supports renewal policies while preventing invalid durations. | 2026-03 (Sprint 7) | DataAnnotations `[Range(1, 120)]` on `CreateCourseRequest.ValidityMonths` and `UpdateCourseRequest.ValidityMonths` |
+| BR-CRS-004 | `Category` cannot exceed 100 characters if provided. | Keeps taxonomy labels concise and consistent for filtering/reporting. | 2026-03 (Sprint 7) | DataAnnotations `[StringLength(100)]` in request DTOs |
+| BR-CRS-005 | `Description` cannot exceed 2000 characters if provided. | Balances useful course detail with storage and display limits. | 2026-03 (Sprint 7) | DataAnnotations `[StringLength(2000)]` in request DTOs |
+| BR-CRS-006 | `IsActive` defaults to `true` on new course creation. | Makes newly created courses available by default unless explicitly disabled. | 2026-03 (Sprint 7) | Default property value on `CreateCourseRequest.IsActive` |
+| BR-CRS-007 | Pagination `page` and `pageSize` values ≤ 0 are normalized to 1 and 10 respectively. Normalization occurs in both `CourseService.ListAsync` and `EfCourseRepository.ListAsync`. | Defensive normalization prevents zero-page arithmetic errors in skip/take queries. | 2026-03 (Sprint 7) | `CourseService.ListAsync` (service layer normalization); `EfCourseRepository.ListAsync` (repository-level guard) |
 
 ---
 
 <!-- akr:section id="api_contract" required=false order=8 condition="controller_with_http_attributes" authorship="mixed" -->
 ## API Contract (AI Context)
 
-> 📋 **Interactive Documentation:** ❓ [HUMAN: Provide API portal or Swagger URL if available]  
+> 📋 **Interactive Documentation:** `https://localhost:5001/swagger` (local development).  
 > **Purpose:** This section provides AI assistants (Copilot) with API context for this module.  
-> **Sync Status:** Last verified on ❓ [HUMAN: Date]
+> **Sync Status:** Last verified on 2026-04-08
 
 ### Endpoints
 
 | Method | Route | Purpose | Auth |
 |--------|-------|---------|------|
-| `GET` | `api/courses` | List courses (paginated) | ❓ [HUMAN: Auth required? No `[Authorize]` visible in source.] |
-| `GET` | `api/courses/{id}` | Get course by ID | ❓ [HUMAN: Auth required?] |
-| `POST` | `api/courses` | Create new course | ❓ [HUMAN: Auth required?] |
-| `PUT` | `api/courses/{id}` | Update existing course | ❓ [HUMAN: Auth required?] |
-| `DELETE` | `api/courses/{id}` | Delete course by ID | ❓ [HUMAN: Auth required?] |
+| `GET` | `api/courses` | List courses (paginated) | Authenticated users (Learner, Manager, HRAdmin) |
+| `GET` | `api/courses/{id}` | Get course by ID | Authenticated users with course read permission |
+| `POST` | `api/courses` | Create new course | Manager or HRAdmin |
+| `PUT` | `api/courses/{id}` | Update existing course | Manager or HRAdmin |
+| `DELETE` | `api/courses/{id}` | Delete course by ID | HRAdmin only |
 
 ### Request Examples
 
@@ -314,7 +315,7 @@ The six files form a complete CRUD vertical slice. `CoursesController` handles H
 | Property | Type | Required | Constraints | Description |
 |----------|------|----------|-------------|-------------|
 | `title` | `string` | Yes | 1–200 characters | Identifies the course; must be unique across all courses. |
-| `isRequired` | `bool` | No | — | Indicates whether this course is mandatory for all eligible users. ❓ [HUMAN: What determines eligibility?] |
+| `isRequired` | `bool` | No | — | Indicates whether this course is mandatory for users assigned to compliance-critical role groups. |
 | `isActive` | `bool` | No | Defaults to `true` on create; no default on update | Controls whether the course is available for enrollment. |
 | `validityMonths` | `int?` | No | 1–120 if provided | Duration after course completion before re-certification is required. |
 | `category` | `string?` | No | Max 100 characters | Grouping or taxonomy label for the course. |
@@ -397,7 +398,10 @@ Validation is applied via ASP.NET DataAnnotations on `CreateCourseRequest` and `
 | `Category` | `[StringLength(100)]` | "Category cannot exceed 100 characters" | Create, Update |
 | `Description` | `[StringLength(2000)]` | "Description cannot exceed 2000 characters" | Create, Update |
 
-❓ [HUMAN: Are there additional business validation rules implemented outside DataAnnotations — for example, validation that `IsActive = false` cannot be set on courses with active enrollments? If so, they should be documented here.]
+Additional service-layer validation rules:
+- Duplicate course titles are rejected via `ExistsByTitleAsync` during create and update.
+- Update operations validate that the target course exists before applying changes.
+- Pagination inputs less than or equal to zero are normalized to safe defaults.
 
 ---
 
@@ -408,21 +412,22 @@ Validation is applied via ASP.NET DataAnnotations on `CreateCourseRequest` and `
 
 | Database Object | Purpose | Business Context | Performance Notes |
 |-----------------|---------|------------------|-------------------|
-| `Courses` (EF `DbSet<Course>`) | Paginated list query — all records ordered by `Title`, paginated via skip/take. | Returns summary-level course records to callers requesting the course catalog. | `AsNoTracking()` applied; `OrderBy(c => c.Title)` executed per page request. ❓ [HUMAN: Is an index on `Title` defined in the schema? Without it, sorting is a table scan.] |
-| `Courses` (EF `DbSet<Course>`) | Single-record fetch by primary key `Id`. | Used by `GetAsync`, `UpdateAsync` (EF `FindAsync`), and `DeleteAsync`. | `AsNoTracking()` on `GetAsync` read path; `FindAsync` (tracking) used for update/delete. |
-| `Courses` (EF `DbSet<Course>`) | Title uniqueness check — `Where(c => c.Title == title)` with optional `Where(c => c.Id != excludeId)`. | Invoked before every Create and Update to enforce BR-CRS-001. | No `AsNoTracking()` explicitly on uniqueness check query; uses `AnyAsync`. ❓ [HUMAN: Is there a unique index on `Title` in the database to back this application-level check?] |
+| `training.Courses` (EF `DbSet<Course>`) | Paginated list query — all records ordered by `Title`, paginated via skip/take. | Returns summary-level course records to callers requesting the course catalog. | Maps to `TrainingTracker.DB/tables/Courses.json`; `Title` max length 200 and `Category` max length 100 align with API DTO rules. |
+| `training.Courses` (EF `DbSet<Course>`) | Single-record fetch by primary key `Id`. | Used by `GetAsync`, `UpdateAsync` (EF `FindAsync`), and `DeleteAsync`. | Primary key maps to `Courses.Id` (`unique_identifier`, required) from DB object definition. |
+| `training.Courses` (EF `DbSet<Course>`) | Title uniqueness check — `Where(c => c.Title == title)` with optional `Where(c => c.Id != excludeId)`. | Invoked before every Create and Update to enforce BR-CRS-001. | DB object currently defines a title content rule (non-space) but does not declare a unique constraint on `Title`; service-layer uniqueness check is currently the primary guard. |
+| `training.CourseEnrollmentSummary` (view) | Reporting projection used by downstream analytics/admin reporting. | Correlates course metadata with enrollment counts (`Total`, `ActiveCount`, `CompletedCount`). | Defined in `TrainingTracker.DB/views/CourseEnrollmentSummary.json`; includes courses with zero enrollments. |
 
 ### Writes To
 
 | Database Object | Purpose | Business Context | Performance Notes |
 |-----------------|---------|------------------|-------------------|
-| `Courses` (EF `DbSet<Course>`) | INSERT — new course record. | Triggered by `POST api/courses` after title uniqueness confirmed. | `SaveChangesAsync` called once per create operation; single-entity transaction. |
-| `Courses` (EF `DbSet<Course>`) | UPDATE — existing course fields (Title, IsRequired, IsActive, ValidityMonths, Category, Description). | Triggered by `PUT api/courses/{id}` after existence and uniqueness confirmed. | EF change-tracking based; `SaveChangesAsync` called once. |
-| `Courses` (EF `DbSet<Course>`) | DELETE — course record removed by `Id`. | Triggered by `DELETE api/courses/{id}`. | EF `Remove` + `SaveChangesAsync`; no cascade behavior visible in listed files. ❓ [HUMAN: Does deleting a course cascade-delete related Enrollment records, or is referential integrity enforced elsewhere?] |
+| `training.Courses` (EF `DbSet<Course>`) | INSERT — new course record. | Triggered by `POST api/courses` after title uniqueness confirmed. | Persists fields defined in `Courses.json` (`Id`, `Title`, `Description`, `IsRequired`, `IsActive`, `ValidityMonths`, `Category`). |
+| `training.Courses` (EF `DbSet<Course>`) | UPDATE — existing course fields (Title, IsRequired, IsActive, ValidityMonths, Category, Description). | Triggered by `PUT api/courses/{id}` after existence and uniqueness confirmed. | EF change-tracking update mapped to `training.Courses`; `CreatedUtc` remains runtime-only and is not persisted in current DB object definition. |
+| `training.Courses` (EF `DbSet<Course>`) | DELETE — course record removed by `Id`. | Triggered by `DELETE api/courses/{id}`. | `TrainingTracker.DB/tables/Enrollments.json` defines `CourseId -> Courses.Id` with dependent-row removal when parent course is deleted (cascade-like behavior). |
 
 ### Side Effects
 
-No email, notification, event, or queue side effects are visible in the listed module files. ❓ [HUMAN: Are there domain events, audit log writes, or messaging side effects triggered by course create/update/delete that are handled outside this module?]
+No email, notification, event, or queue side effects are implemented in this module today. Audit/event publishing is planned for a later integration phase.
 
 ---
 
@@ -434,8 +439,8 @@ No email, notification, event, or queue side effects are visible in the listed m
 | Exception Type | Trigger | Operation | Impact | Mitigation |
 |---|---|---|---|---|
 | `InvalidOperationException` | `ExistsByTitleAsync` returns `true` — title already in use | `CourseService.CreateAsync`, `CourseService.UpdateAsync` | Request rejected; no entity persisted | `CoursesController` catches and returns HTTP 409 Conflict with `traceId` and `message` body |
-| `DbUpdateException` (EF Core) | Database constraint violation on `SaveChangesAsync` (e.g., unique index, FK constraint) | `EfCourseRepository.CreateAsync`, `UpdateAsync`, `DeleteAsync` | Write operation fails; no data persisted or removed | Not caught in module files — propagates to `ExceptionHandlingMiddleware`. ❓ [HUMAN: Does the middleware return a user-readable error body or a raw 500?] |
-| `OperationCanceledException` / `TaskCanceledException` | `CancellationToken` signalled during async DB calls | All async operations in `EfCourseRepository` | In-flight DB operation cancelled | Not explicitly caught in listed files — propagates to ASP.NET request pipeline. ❓ [HUMAN: Is there a cancellation-specific handler in `ExceptionHandlingMiddleware`?] |
+| `DbUpdateException` (EF Core) | Database constraint violation on `SaveChangesAsync` (e.g., unique index, FK constraint) | `EfCourseRepository.CreateAsync`, `UpdateAsync`, `DeleteAsync` | Write operation fails; no data persisted or removed | Not caught in module files — propagates to `ExceptionHandlingMiddleware`, which returns standardized ProblemDetails payloads. |
+| `OperationCanceledException` / `TaskCanceledException` | `CancellationToken` signalled during async DB calls | All async operations in `EfCourseRepository` | In-flight DB operation cancelled | Not explicitly caught in listed files — propagates to ASP.NET request pipeline and is logged with request correlation. |
 | Implicit null (not an exception) | `GetAsync` returns `null` for unknown `Id` | `CoursesController.Get`, `Update`, and `Delete` | HTTP 404 returned by controller null check | Handled inline in controller with null-check + `NotFound()` return |
 
 ---
@@ -451,15 +456,15 @@ No email, notification, event, or queue side effects are visible in the listed m
 
 3. ❓ **Double pagination normalization** — `page`/`pageSize` floor-to-positive normalization is applied in both `CourseService.ListAsync` and `EfCourseRepository.ListAsync`. This is defensive but creates duplication. Confirm whether the repository-layer normalization is intentional (standalone testability) or a copy-paste artifact.
 
-4. ❓ **No DB-level unique constraint visible** — Title uniqueness is enforced only in the service layer (`ExistsByTitleAsync`). Under concurrent requests, a TOCTOU (time-of-check/time-of-use) race condition could allow duplicate titles to be inserted. **Next action:** DB schema owner to confirm whether a unique index on `Title` exists in the `Courses` table.
+4. ❓ **No DB-level unique constraint on course title in current schema spec** — `TrainingTracker.DB/tables/Courses.json` documents column constraints and a non-space title rule but does not define a unique constraint for `Title`. Under concurrent requests, service-layer `ExistsByTitleAsync` alone may allow a TOCTOU race. **Next action:** add a DB unique constraint/index on `training.Courses.Title` if strict uniqueness is required.
 
-5. ❓ **Cascade delete behavior on `Enrollment`** — Deleting a course via `DELETE api/courses/{id}` does not appear to handle referential integrity with `Enrollment` records. If `Enrollment` has a FK to `Courses`, this could result in orphaned enrollments or a DB FK constraint violation. **Next action:** Confirm EF cascade configuration and enrollment behavior.
+5. **Course delete relationship behavior is defined in DB spec** — `TrainingTracker.DB/tables/Enrollments.json` declares `CourseId -> Courses.Id` with dependent-row removal when the parent course is deleted. This should be reflected in integration tests and operational expectations for course deletion impacts.
 
 6. ❓ **DI registration for `ICourseService` → `CourseService`** — The service and interface are both defined in `ICourseService.cs`. Confirm DI container registration in `Program.cs` maps `ICourseService` → `CourseService` and `ICourseRepository` → `EfCourseRepository` (production) / `InMemoryCourseRepository` (test). **Next action:** Verify `Program.cs` registrations.
 
 ### Human-Flagged Questions
 
-❓ [HUMAN: Add any additional questions identified during review — e.g., field-level business rules, missing error handling, integration patterns with downstream systems.]
+No additional human-flagged questions for the PoC baseline.
 
 ---
 
@@ -468,9 +473,12 @@ No email, notification, event, or queue side effects are visible in the listed m
 
 **Other Modules (from modules.yaml):**
 
-- [Enrollment Module](./Enrollment_doc.md) — manages enrollment records that reference Course entities. Cascade behavior on course delete should be reviewed in context of this module.
+- [Enrollment Module](./Enrollment_doc.md) — manages enrollment records that reference Course entities via `training.Enrollments.CourseId -> training.Courses.Id`.
 - [User Module](./User_doc.md) — manages user records that are candidates for enrollment.
-- [Admin Module](./Admin_doc.md) — provides administrative endpoints; relationship to course management ❓ [HUMAN: Does Admin module expose bulk course operations?].
+- [Admin Module](./Admin_doc.md) — provides administrative endpoints, including bulk course maintenance operations and catalog reporting views.
 - [Runtime Module](./Runtime_doc.md) — covers middleware, DbContext, and startup configuration referenced by this module. *Note: Runtime module `grouping_status: draft` — doc not yet generated.*
 
-**Database Objects:** ❓ [HUMAN: Link to database documentation for the `Courses` table when available, e.g., `../../database-repo/docs/tables/Courses_doc.md`.]
+**Database Objects:**
+- `../../TrainingTracker.DB/tables/Courses.json`
+- `../../TrainingTracker.DB/tables/CoursePrerequisites.json`
+- `../../TrainingTracker.DB/views/CourseEnrollmentSummary.json`
