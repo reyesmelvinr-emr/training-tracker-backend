@@ -80,7 +80,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Keep local dev on HTTP to avoid browser CORS failures caused by 307 redirects.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Observability / error pipeline
 app.UseCorrelationId();

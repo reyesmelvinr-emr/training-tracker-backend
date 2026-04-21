@@ -1,0 +1,36 @@
+﻿{
+  "version": "2.0.0",
+  "projectInfo": {
+    "name": "training-tracker-backend",
+    "description": "Employee training and certification backend API",
+    "layer": "API",
+    "domains": [
+      "Training",
+      "CourseCatalog",
+      "Enrollment"
+    ]
+  },
+  "documentation": {
+    "outputPath": "docs/",
+    "componentMappings": {
+      "TrainingTracker.Api/Controllers/": "docs/services/",
+      "TrainingTracker.Api/Domain/": "docs/services/",
+      "TrainingTracker.Api/Infrastructure/": "docs/services/"
+    },
+    "templatePreferences": {
+      "service": "lean_baseline_service_template_module.md",
+      "controller": "lean_baseline_service_template_module.md"
+    },
+    "includePatterns": [
+      "TrainingTracker.Api/**/*.cs"
+    ],
+    "excludePatterns": [
+      "**/bin/**",
+      "**/obj/**",
+      "**/*.test.*",
+      "**/*.spec.*"
+    ],
+    "autoGenerateOnSave": false,
+    "requireReviewBeforeCommit": true
+  }
+}
