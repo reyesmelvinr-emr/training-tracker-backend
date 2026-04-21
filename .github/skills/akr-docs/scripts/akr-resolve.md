@@ -6,6 +6,9 @@
 
 Interactively resolve unresolved ❓ markers in an existing draft document. Apply accepted answers as surgical edits without regenerating the whole document.
 
+Token budget: 0 `@github` calls by default. This mode operates on the local
+document plus local source context only and must not fetch templates/charters.
+
 ## Pre-flight
 
 1. Read the target document specified by the user.

@@ -6,16 +6,21 @@
 
 ## Purpose
 
-Execute documentation generation for a named module. Read structural knowledge
+Execute documentation generation for one or more named modules. Read structural knowledge
 from the template's `akr:` directives. Do not encode structural knowledge here.
+
+**Single-module mode:** `/akr-docs generate [ModuleName]`
+**Batch mode:** `/akr-docs generate --batch [ModuleA ModuleB ModuleC ...]` (max 5 modules, auto-skips scoring)
 
 ---
 
 ## Step 1: Pre-flight
 
+### Single-module mode
+
 Read `modules.yaml`. Locate the target module.
 
-Capture `generation_started_at` as UTC timestamp immediately when `/akr-docs generate` is invoked. This timestamp is used to compute per-stage timing metrics recorded in Steps 2–8.
+Capture `generation_started_at` as UTC timestamp immediately when `/akr-docs generate [ModuleName]` is invoked. This timestamp is used to compute per-stage timing metrics recorded in Steps 2–8.
 
 Initialize stage timers at invocation:
 ```
@@ -30,13 +35,61 @@ stage_timers = {
 ```
 Record `stage_timers.preflight_seconds = now_utc - generation_started_at` after module lookup and pre-flight checks complete.
 
+### Batch mode
+
+When `--batch` flag is present, immediately parse the module list and validate before any generation starts. Batch size limit: **5 modules maximum**.
+
+**Batch pre-flight validation:**
+1. Count modules: if count > 5, stop with message: `Batch limit exceeded: listed {count} modules, max is 5. Split into multiple runs.`
+2. For each module name in the list:
+   - Confirm it exists in `modules.yaml`
+   - Confirm `grouping_status: approved` (reject `draft` status)
+   - Record module's `doc_output` path
+3. If any module fails validation, stop and surface ALL failures at once:
+   ```
+   Batch pre-flight validation failed:
+     ModuleB — not found in modules.yaml
+     ModuleD — grouping_status: draft (must be approved)
+   Correct modules.yaml entries before re-running.
+   ```
+4. If all validations pass, surface batch plan preview:
+   ```
+   Batch plan (3 modules):
+     1. CourseDomain       → docs/modules/CourseDomain_draft.md
+     2. EnrollmentDomain   → docs/modules/EnrollmentDomain_draft.md
+     3. InstructorDomain   → docs/modules/InstructorDomain_draft.md
+   
+   Template cache: {hit | miss} (reyesmelvinr-emr/core-akr-templates@master)
+   Charter: shared ({project_type} — fetched once)
+   
+   Proceed with batch generation? (yes / no)
+   ```
+5. Wait for explicit user confirmation before beginning Step 1 iteration.
+6. Initialize batch results tracking structure:
+   ```
+   batch_results = {
+     total_modules: count,
+     modules: [],  # array of {name, status, draft_path, doc_path, generation_seconds, validation_status, error}
+     successful: [],
+     failed: []
+   }
+   ```
+
+In batch mode, **Steps 1–8 run per module in sequence.** Each module execution resets `generation_started_at` to mark the beginning of that module's generation (not the batch start time). This ensures each module's draft front matter records independent timing metrics.
+
 **Cross-chat template and charter cache:** `.akr/cache/` in the workspace root. Templates and charters fetched via `@github` are written here keyed by `{owner}/{repo}@{branch}/{encoded-path}`. A new VS Code chat session in the same workspace can read from this cache without a remote fetch, eliminating repeat network round-trips. To force refresh cache contents, run `/akr-docs refresh-assets` before generating. Add `.akr/cache/` to `.gitignore` to prevent committing cached remote assets.
 
 - If `grouping_status: draft` → stop. Tell the user to approve the grouping first.
 - If module not found → stop. Tell the user to run `/akr-docs groupings` first.
 - If `feature` value matches the all-zero placeholder (e.g. `FN00000_US000`) → do not copy it. Write `feature: ❓ NEEDS real work-item tag` in the output front matter instead.
 
-Infer `project_type` from the module file list:
+Infer `project_type` from the module file list.
+
+Normalize module file entries first (backward compatible):
+- Legacy entry: `"src/Foo.cs"` → treat as `{ path: "src/Foo.cs", tier: "primary" }`
+- New entry: `{ path: "src/Foo.cs", tier: "primary|supporting" }`
+
+For documentation decisions, use only files where `tier=primary`.
 
 | Signal | project_type |
 |---|---|
@@ -53,8 +106,8 @@ Identify the template path from the project_type:
 
 | project_type | Template path in core-akr-templates |
 |---|---|
-| `api-backend` / `microservice` / `general` | `templates/lean_baseline_service_template_module.md` |
-| `ui-component` | `templates/ui_component_template_module.md` |
+| `api-backend` / `microservice` / `general` | `.akr/templates/lean_baseline_service_template_module.md` |
+| `ui-component` | `.akr/templates/ui_component_template_module.md` |
 
 **Fetch the full template file; parse and carry forward only the `akr:` directive
 blocks. Discard the template prose body.** Parse and carry forward:
@@ -63,8 +116,9 @@ blocks. Discard the template prose body.** Parse and carry forward:
 - **Condition definitions:** token → detection description mapping
 
 **Before fetching, check cache:**
-1. Compute cache key: `{owner}/{repo}@{branch}/{template_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/templates/lean_baseline_service_template_module.md`)
-2. Cache file: `.akr/cache/{encoded_cache_key}.md`
+1. Compute cache key: `{owner}/{repo}@{branch}/{template_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/.akr/templates/lean_baseline_service_template_module.md`)
+2. Encode key per `SKILL.md` section **Cache Key Encoding Contract**.
+3. Cache file: `.akr/cache/{encoded_cache_key}.md`
 3. If cache file exists: read template from cache, skip `@github` fetch, set `template-cache: hit`.
 4. If cache file does not exist: fetch via `@github get file`, write content to cache file, set `template-cache: miss`.
 
@@ -88,7 +142,8 @@ allowed `@github` call.
 
 **Before fetching, check cache:**
 1. Compute cache key: `{owner}/{repo}@{branch}/{charter_path}` (e.g. `reyesmelvinr-emr/core-akr-templates@master/copilot-instructions/backend-service.instructions.md`)
-2. Cache file: `.akr/cache/{encoded_cache_key}.md`
+2. Encode key per `SKILL.md` section **Cache Key Encoding Contract**.
+3. Cache file: `.akr/cache/{encoded_cache_key}.md`
 3. If cache file exists: read charter from cache, skip `@github` fetch, set `charter-cache: hit`.
 4. If cache file does not exist: fetch via `@github get file`, write content to cache file, set `charter-cache: miss`.
 
@@ -107,7 +162,12 @@ Compress into a forward payload summary (~400 tokens). Carry only:
 
 Record `stage_source_extraction_start = now_utc` before reading any source file.
 
-Read only files listed under `files:` for this module in `modules.yaml`.
+Read module `files:` from `modules.yaml` using backward-compatible parsing:
+- If entry is string, treat as `path` with implicit `tier=primary`.
+- If entry is object, read `path` and `tier`.
+
+Then read only files where `tier=primary` for documentation generation.
+Supporting files remain in `modules.yaml` for coding-assistance context and must not be used as primary documentation evidence.
 
 Build a structured facts payload — no raw file content forward:
 
@@ -228,6 +288,12 @@ Write `<!-- akr-generated -->` metadata header using canonical key/value formats
 Do not emit short template/charter names (e.g., `lean_baseline_service_template_module.md`) in final metadata when full identity is available.
 Record `stage_timers.write_seconds = now_utc - stage_write_start` after the file is written and add to the `stage-timings` block above.
 
+Determinism check:
+- Verify metadata shape is canonical (same keys/order/format regardless of cache hit/miss).
+- Verify `excluded-sections` entries follow deterministic reason format.
+
+### Single-module mode: confirmation gate
+
 Surface draft path in chat and include this confirmation prompt payload:
 - `Draft path: {draft_output_path}`
 - `Final path: {doc_output_path}`
@@ -236,18 +302,75 @@ Surface draft path in chat and include this confirmation prompt payload:
 
 If `draft_output_path` and `doc_output_path` differ, explicitly warn that finalize will promote content to a different path.
 
-Determinism check before confirmation prompt:
-- Verify metadata shape is canonical (same keys/order/format regardless of cache hit/miss).
-- Verify `excluded-sections` entries follow deterministic reason format.
-
 Wait for explicit user confirmation before Step 9.
+
+### Batch mode: collect result and continue
+
+In batch mode, do NOT surface confirmation prompt or pause. Instead:
+1. Record this module's result in `batch_results.modules[]`:
+   ```
+   {
+     name: {ModuleName},
+     status: "draft_written",
+     draft_path: {draft_output_path},
+     doc_path: {doc_output_path},
+     generation_seconds: {draft_generation_seconds},
+     validation_status: null,  # filled in Step 10
+     error: null
+   }
+   ```
+2. Add module name to `batch_results.modules[]` — do NOT yet add to successful/failed (pending Step 10)
+3. Continue to the next module in the batch (loop continues)
+4. If any module fails during Steps 1–8 (e.g., source file missing, project_type ambiguous):
+   - Record the error in `batch_results.modules[{module_index}].error`
+   - Set `status: "generation_failed"`
+   - Add to `batch_results.failed[]`
+   - Continue to the next module (do not abort the entire batch)
+
+---
+
+## Step 8.5: Consolidated Confirmation Gate (Batch Mode Only)
+
+**Applies only to batch mode.** This step runs AFTER all drafts have been written in the batch loop.
+
+All modules from the batch have been processed. Some may have failed during generation (Step 1–8), while others are ready for promotion.
+
+**Display consolidated results table:**
+
+```
+All drafts processed (3 total):
+┌──────────────────┬─────────────────────────┬────────┬────────────────┐
+│ Module           │ Draft Path              │ Time   │ Status         │
+├──────────────────┼─────────────────────────┼────────┼────────────────┤
+│ CourseDomain     │ docs/.../draft.md       │ 42s    │ ✅ ready       │
+│ EnrollmentDomain │ docs/.../draft.md       │ 38s    │ ✅ ready       │
+│ InstructorDomain │ —                       │ —      │ ❌ failed      │
+└──────────────────┴─────────────────────────┴────────┴────────────────┘
+
+Failure reasons:
+  InstructorDomain — Source file missing: src/Controllers/InstructorsController.cs
+
+2 of 3 modules ready for promotion.
+
+Promote successful modules to final documents? (yes / no)
+```
+
+### Single confirmation decision
+
+Wait for explicit user confirmation. Do NOT ask per-module.
+
+**On yes:** Proceed to Step 9 with only the successful modules from `batch_results.successful[]`
+
+**On no:** Stop. Skip Step 9 and proceed to Step 10 (inline validation for all modules with outputs). No documents are promoted.
 
 ---
 
 ## Step 9: Write Final Document
 
+### Single-module mode
+
 On user confirmation:
-1. Strip draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`)
+1. Strip draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`, `generation-strategy`, `passes-completed`, `excluded-sections`)
 2. Set `status: draft` — never copy grouping status from modules.yaml
 3. Confirm `<!-- akr-generated -->` metadata header is present
 4. Finalize by promoting the reviewed draft artifact:
@@ -257,11 +380,36 @@ On user confirmation:
   - Default: do not leave a duplicate draft artifact after successful promotion
   - Optional `--keep-draft`: keep a copy at `draft_output` for audit workflows
 
+### Batch mode
+
+On user confirmation in Step 8.5, promote all modules in `batch_results.successful[]`:
+
+**For each successful module:**
+1. Strip draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`, `generation-strategy`, `passes-completed`, `excluded-sections`)
+2. Set `status: draft` — never copy grouping status from modules.yaml
+3. Confirm `<!-- akr-generated -->` metadata header is present
+4. Finalize by promoting the reviewed draft artifact:
+  - If draft path differs from `doc_output`, move/rename the sanitized draft file to `doc_output`
+  - If draft path equals `doc_output`, sanitize in place
+5. Record promotion success in `batch_results.modules[{module_index}].status = "promoted"`
+
+Cleanup policy (batch mode):
+- Default: do not leave duplicate draft artifacts after successful promotion
+- Optional `--keep-draft`: keep copies at draft paths for audit workflows
+
+**For failed modules in `batch_results.failed[]`:**
+- Do NOT process; draft remains at draft path for manual intervention
+- Status remains "generation_failed" in results
+
+If user chose "no" in Step 8.5, skip all promotion. Status for all modules remains "draft_written" or "generation_failed".
+
 ---
 
 ## Step 10: Inline Validation (Immediate — No External Files Required)
 
-Run the inline validator immediately after writing the final document.
+### Single-module mode
+
+Run the inline validator immediately after writing the final document in Step 9.
 This validator is self-contained Python — it requires no modules.yaml lookup,
 no vale installation, and no distribution to the application repo.
 
@@ -291,7 +439,7 @@ python ~/.akr/templates/.github/skills/akr-docs/scripts/akr_inline_validate.py \
 | YAML front matter presence | Missing `---` block |
 | Required front matter fields | Missing businessCapability, feature, layer, project_type, status, compliance_mode |
 | Field value validity | Invalid layer, project_type, status, compliance_mode values |
-| Draft-only field cleanliness | preview-generated-at, generation-started-at, draft-generation-seconds, stage-timings, or review-mode present in final output |
+| Draft-only field cleanliness | preview-generated-at, generation-started-at, draft-generation-seconds, stage-timings, review-mode, generation-strategy, passes-completed, or excluded-sections present in final output |
 | akr-generated header | Missing `<!-- akr-generated` comment |
 | Required section headings | Missing sections (discovered from akr:section directives or baseline fallback) |
 | Unresolved ❓ markers | Warning in pilot, error in production |
@@ -328,21 +476,48 @@ errors surfaced here (missing front matter, missing header, missing required
 sections) are the same ones that will fail CI — catching them now avoids a
 failed PR round-trip.
 
-**If inline validation passes:** Proceed directly to Step 11 (auto-score), which
-runs in this same session. The Step 12 summary will then instruct the user to open
-a PR. The full CI pipeline (`validate-documentation.yml`) runs automatically on PR
-open and provides the complete validation report including Vale, completeness
-scoring, and modules.yaml cross-checks.
+**If inline validation passes:** Proceed directly to Step 11 (auto-score). 
+
+The Step 12 summary will then instruct the user to open a PR. The full CI pipeline (`validate-documentation.yml`) runs automatically on PR open and provides the complete validation report including Vale, completeness scoring, and modules.yaml cross-checks.
+
+### Batch mode
+
+Run inline validation **per module** for all produced documents:
+
+**For each module in `batch_results.modules[]` where status is "promoted" or "draft_written":**
+1. If final document exists, validate it:
+   ```bash
+   python .github/skills/akr-docs/scripts/akr_inline_validate.py \
+     {doc_output_path} \
+     --output json
+   ```
+2. Record validation result in `batch_results.modules[{i}].validation_status`:
+   - If validation passes: `"validation_passed"` + add module to `batch_results.successful[]`
+   - If validation fails: `"validation_failed"` + capture error list
+3. Collect all validation outputs (passed and failed)
+
+**For modules where status is "generation_failed":**
+- Skip validation (no output file exists)
+- Record `validation_status: "skipped_generation_failed"`
+
+**After validating all modules:** Proceed to Step 12 with consolidated validation summary (no Step 11 auto-score for batch mode).
 
 ---
 
-## Step 11: Auto-Score (runs only when Step 10 passes with 0 errors)
+## Step 11: Auto-Score (runs only in single-module mode when Step 10 passes with 0 errors)
 
-Gate: proceed only if Step 10 inline validation exits with 0 errors. If
-validation failed, skip this step entirely and go to Step 12.
+**Batch mode:** auto-skip this step unconditionally. Proceed directly to Step 12 after Step 10 completion.
+
+**Single-module mode:** proceed only if Step 10 output includes `Status: ✅ PASSED` and `Errors: 0`.
+If Step 10 output includes `Status: ❌ FAILED` or any `[ERROR]` lines,
+skip this step entirely and go to Step 12.
 
 This scoring step runs in the same Copilot session as generation — zero
 additional LLM API cost beyond the current session.
+
+Use the scoring rubric and weighting rules from `/akr-docs score` as the
+authoritative source (`akr-score.md`, Steps 3-4). Do not redefine alternate
+rubrics or weights in this mode.
 
 **Evaluate sections:**
 
@@ -356,31 +531,8 @@ additional LLM API cost beyond the current session.
    score Quick Reference (TL;DR), Purpose and Scope, Business Rules
    (`why_it_exists` and `since_when` columns), and Questions & Gaps if present.
 
-**Rubric (0–10 per section):**
-
-| Score | Tier | Criteria |
-|-------|------|----------|
-| 0–2 | Template placeholder | Content unchanged from template; bare ❓ with no additional text |
-| 3–4 | Generic | Content present but applies to any module; no domain-specific context |
-| 5–6 | Acknowledged gap | Explicitly notes what is unknown or deferred — **rewarded** |
-| 7–8 | Substantive | Module-specific business context evident; minor gaps acceptable |
-| 9–10 | Complete | Genuine domain knowledge; no template filler; all sub-fields populated |
-
-**Section weights:**
-
-| Section | Weight |
-|---------|--------|
-| Business Rules | 2.0 |
-| Quick Reference (TL;DR) | 1.5 |
-| Purpose and Scope | 1.5 |
-| Questions & Gaps | 1.0 |
-| All other human-authored sections | 1.0 |
-
-**Compute score:**
-
-```
-semantic_score = round(sum(section_score × weight) / sum(weight) × 10)  # 0–100
-```
+Apply the rubric, weights, and score formula exactly as defined in
+`akr-score.md` Steps 3-4.
 
 **Display per-section summary in chat:**
 
@@ -420,7 +572,9 @@ These fields must survive through PR and merge.
 
 ## Step 12: Surface Result to User
 
-After inline validation, show this summary in chat:
+### Single-module mode
+
+After inline validation and scoring (if completed), show this summary in chat:
 
 ```
 ## Generation Complete: {ModuleName}
@@ -443,7 +597,11 @@ Inline validation: {✅ PASSED / ❌ FAILED — N errors}
 Semantic score:     {N}/100 ({tier}) | skipped
 
 {If PASSED}
-Next step: Open a PR. Full CI validation runs automatically and will check:
+Next step: resolve open items using the right flow, then open a PR.
+  - Use `/akr-docs resolve` for source-grounded draft cleanup.
+  - Use `/akr-interview` for callout-driven collaboration and owner-specific routing.
+
+After resolution, open a PR. Full CI validation runs automatically and will check:
   - Vale prose linting
   - modules.yaml cross-references
   - Completeness scoring
@@ -460,6 +618,51 @@ Metadata snapshot (canonical):
   passes-completed:   {single | pass list}
 ```
 
+### Batch mode
+
+After inline validation of all modules, show batch summary:
+
+```
+## Batch Generation Complete
+
+Processed 3 modules:
+┌──────────────────┬──────────┬──────────────────┬────────────┬──────────────────────┐
+│ Module           │ Final    │ Draft → Final    │ Validation │ Next Steps           │
+├──────────────────┼──────────┼──────────────────┼────────────┼──────────────────────┤
+│ CourseDomain     │ ✅ docs/ │ docs/.../draft   │ ✅ 0 errors│ Resolve ❓ markers   │
+│ EnrollmentDomain │ ✅ docs/ │ docs/.../draft   │ ❌ 2 errors│ Fix validation errors │
+│ InstructorDomain │ ❌ —     │ generation_failed│ —          │ Check source files   │
+└──────────────────┴──────────┴──────────────────┴────────────┴──────────────────────┘
+
+Results:
+  Promoted: 2 modules
+  Validation passed: 1 module
+  Requires fixes: 1 module
+  Generation failed: 1 module
+
+Total batch time: {sum of all module generation_seconds}s
+
+Next steps:
+  - Promoted + validated modules: resolve ❓ markers, then open PR
+  - Promoted + validation errors: fix errors, then commit and push before PR
+  - Generation failures: check source files and re-run generation
+
+Semantic scores: skipped (batch mode)
+
+CI validation will check all promoted modules when PR opens (Vale, cross-refs, completeness).
+```
+
+Detailed per-module validation results (if any failures):
+```
+EnrollmentDomain — Validation Failed:
+  [ERROR] [required-fields] Missing businessCapability
+  [WARNING] [transparency-markers] 3 unresolved ❓ markers
+
+InstructorDomain — Generation Failed:
+  Source file missing: src/Controllers/InstructorsController.cs
+  Cannot infer project_type without primary files.
+```
+
 ---
 
 ## Quality Threshold Checklist
@@ -474,7 +677,7 @@ Applies before writing final document (Step 9), independent of validation:
 - [ ] `data_operations`: reads, writes, and side effects covered
 - [ ] All unknowns marked ❓ or DEFERRED with owner
 - [ ] `<!-- akr-generated -->` header present
-- [ ] Draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`) absent from final output
+- [ ] Draft-only front matter fields (`preview-generated-at`, `generation-started-at`, `draft-generation-seconds`, `stage-timings`, `review-mode`, `generation-strategy`, `passes-completed`, `excluded-sections`) absent from final output
 - [ ] Score front matter fields (`semantic-score`, `semantic-scored-at`, `semantic-score-version`) present if scoring was not skipped
 - [ ] Excluded sections recorded in draft front matter with reasons
 - [ ] All stage timing metrics captured in draft front matter and surfaced in confirmation prompt
