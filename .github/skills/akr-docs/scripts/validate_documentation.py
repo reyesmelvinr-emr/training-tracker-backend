@@ -16,12 +16,24 @@ import yaml
 
 
 MODULE_REQUIRED_SECTIONS = [
-    "Overview",
+    "Quick Reference",
     "Module Files",
-    "Operations Map",
-    "Architecture Overview",
+    "API Operations",
+    "Integration Context",
     "Business Rules",
+    "Data Operations",
+    "Questions & Gaps",
 ]
+
+MODULE_REQUIRED_SECTION_ALIASES = {
+    "Quick Reference": ["Quick Reference", "Quick Reference (TL;DR)"],
+    "Module Files": ["Module Files"],
+    "API Operations": ["API Operations", "Operations Map"],
+    "Integration Context": ["Integration Context", "Architecture Overview"],
+    "Business Rules": ["Business Rules"],
+    "Data Operations": ["Data Operations"],
+    "Questions & Gaps": ["Questions & Gaps", "Questions Gaps"],
+}
 
 DB_REQUIRED_SECTIONS = [
     "Overview",
@@ -34,8 +46,21 @@ GENERIC_REQUIRED_SECTIONS = ["Overview"]
 PROJECT_LAYER_ENUM = {"UI", "API", "Database", "Integration", "Infrastructure", "Full-Stack"}
 PROJECT_TYPE_ENUM = {"api-backend", "ui-component", "microservice", "general"}
 MODULE_STATUS_ENUM = {"draft", "review", "approved", "in-progress", "deprecated"}
+MODULE_GROUPING_STATUS_ENUM = {"draft", "approved"}
 DB_TYPE_ENUM = {"table", "view", "procedure", "function", "schema"}
-DRAFT_ONLY_FRONT_MATTER_FIELDS = {"preview-generated-at", "review-mode"}
+FILE_TIER_ENUM = {"primary", "supporting"}
+VALID_COMPLIANCE_MODES = {"pilot", "production"}
+CONSTANTS_VERSION = "1.0.0"
+DRAFT_ONLY_FRONT_MATTER_FIELDS = {
+    "preview-generated-at",
+    "generation-started-at",
+    "draft-generation-seconds",
+    "stage-timings",
+    "review-mode",
+    "generation-strategy",
+    "passes-completed",
+    "excluded-sections",
+}
 
 # Score fields written by /akr-docs score — must NEVER be in DRAFT_ONLY_FRONT_MATTER_FIELDS.
 SCORE_FRONT_MATTER_FIELDS: frozenset = frozenset({
@@ -51,6 +76,20 @@ MODULE_REQUIRED_FRONT_MATTER_FIELDS = {
     "project_type",
     "status",
     "compliance_mode",
+}
+
+MODULE_ALLOWED_KEYS = {
+    "name",
+    "grouping_status",
+    "files",
+    "doc_output",
+    "review_sheet",
+    "draft_output",
+    "last_reviewed_at",
+    "review_mode",
+    "notes",
+    "ssg_pass4_source_reread",
+    "ssg_pass3_source_reread",
 }
 
 
@@ -107,6 +146,11 @@ class ValidationResult:
 
 def _normalize_heading(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _required_heading_matches(section: str) -> List[str]:
+    aliases = MODULE_REQUIRED_SECTION_ALIASES.get(section, [section])
+    return [_normalize_heading(alias) for alias in aliases]
 
 
 def _extract_h2_headings(content: str) -> List[Tuple[str, int]]:
@@ -220,6 +264,54 @@ def _collect_declared_artifact_warnings(manifest: Dict[str, Any], workspace_root
     return issues
 
 
+def _validate_module_file_entry(entry: Any, module_idx: int, file_idx: int) -> List[ValidationIssue]:
+    issues: List[ValidationIssue] = []
+
+    # Strict schema requires object-form entries with path and tier.
+    if isinstance(entry, str):
+        issues.append(
+            ValidationIssue(
+                "error",
+                f"modules[{module_idx}].files[{file_idx}] must be an object with path and tier",
+                "modules-schema",
+            )
+        )
+        return issues
+
+    # Required format: object entry with explicit path and tier.
+    if not isinstance(entry, dict):
+        issues.append(
+            ValidationIssue(
+                "error",
+                f"modules[{module_idx}].files[{file_idx}] must be an object with path and tier",
+                "modules-schema",
+            )
+        )
+        return issues
+
+    path_value = entry.get("path")
+    if not isinstance(path_value, str) or not path_value.strip():
+        issues.append(
+            ValidationIssue(
+                "error",
+                f"modules[{module_idx}].files[{file_idx}].path is required",
+                "modules-schema",
+            )
+        )
+
+    tier_value = entry.get("tier")
+    if tier_value not in FILE_TIER_ENUM:
+        issues.append(
+            ValidationIssue(
+                "error",
+                f"modules[{module_idx}].files[{file_idx}].tier must be one of: primary, supporting",
+                "modules-schema",
+            )
+        )
+
+    return issues
+
+
 def _validate_manifest_schema(manifest: Dict[str, Any]) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
 
@@ -251,7 +343,7 @@ def _validate_manifest_schema(manifest: Dict[str, Any]) -> List[ValidationIssue]
         )
 
     compliance_mode = project.get("compliance_mode")
-    if compliance_mode not in {"pilot", "production"}:
+    if compliance_mode not in VALID_COMPLIANCE_MODES:
         issues.append(ValidationIssue("error", "modules.yaml project.compliance_mode must be pilot or production", "modules-schema"))
 
     standards_version = _parse_semver(project.get("standards_version"))
@@ -273,6 +365,16 @@ def _validate_manifest_schema(manifest: Dict[str, Any]) -> List[ValidationIssue]
             issues.append(ValidationIssue("error", f"modules[{idx}] must be an object", "modules-schema"))
             continue
 
+        unknown_keys = sorted(set(module.keys()) - MODULE_ALLOWED_KEYS)
+        for key in unknown_keys:
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    f"modules[{idx}] has unsupported field: {key}",
+                    "modules-schema",
+                )
+            )
+
         name = module.get("name")
         if not isinstance(name, str) or not name.strip():
             issues.append(ValidationIssue("error", f"modules[{idx}].name is required", "modules-schema"))
@@ -281,34 +383,30 @@ def _validate_manifest_schema(manifest: Dict[str, Any]) -> List[ValidationIssue]
         else:
             module_names.add(name)
 
-        project_type = module.get("project_type")
-        if project_type not in PROJECT_TYPE_ENUM:
+        grouping_status = module.get("grouping_status")
+        if grouping_status not in MODULE_GROUPING_STATUS_ENUM:
             issues.append(
                 ValidationIssue(
                     "error",
-                    f"modules[{idx}].project_type has unknown value: {project_type}",
+                    f"modules[{idx}].grouping_status must be one of: draft, approved",
                     "modules-schema",
                 )
             )
 
-        status = module.get("status")
-        if status not in MODULE_STATUS_ENUM:
-            issues.append(ValidationIssue("error", f"modules[{idx}].status has invalid value: {status}", "modules-schema"))
-
-        max_files = module.get("max_files")
         files = module.get("files")
-        if not isinstance(max_files, int) or max_files < 1 or max_files > 8:
-            issues.append(ValidationIssue("error", f"modules[{idx}].max_files must be 1..8", "modules-schema"))
         if not isinstance(files, list) or len(files) == 0:
             issues.append(ValidationIssue("error", f"modules[{idx}].files must include at least one file", "modules-schema"))
-        elif isinstance(max_files, int) and len(files) > max_files:
+        elif len(files) > 8:
             issues.append(
                 ValidationIssue(
                     "error",
-                    f"modules[{idx}] exceeds max_files ({len(files)} > {max_files})",
+                    f"modules[{idx}].files exceeds max length (8)",
                     "modules-schema",
                 )
             )
+        if isinstance(files, list):
+            for file_idx, entry in enumerate(files):
+                issues.extend(_validate_module_file_entry(entry, idx, file_idx))
 
         doc_output = module.get("doc_output")
         if not isinstance(doc_output, str) or not doc_output.startswith("docs/") or not doc_output.endswith(".md"):
@@ -347,7 +445,6 @@ def _build_doc_index(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             index[doc_output] = {
                 "doc_type": "module",
                 "module_name": module.get("name"),
-                "project_type": module.get("project_type"),
                 "doc_output": doc_output,
                 "draft_output": module.get("draft_output"),
                 "review_sheet": module.get("review_sheet"),
@@ -375,8 +472,8 @@ def _check_required_sections(content: str, required_sections: List[str]) -> List
     heading_map = {_normalize_heading(name): line for name, line in headings}
 
     for section in required_sections:
-        norm = _normalize_heading(section)
-        if norm not in heading_map:
+        acceptable = _required_heading_matches(section)
+        if not any(norm in heading_map for norm in acceptable):
             issues.append(
                 ValidationIssue(
                     "error",
@@ -390,8 +487,16 @@ def _check_required_sections(content: str, required_sections: List[str]) -> List
 def _check_transparency_markers(content: str, compliance_mode: str) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
     q_count = content.count("❓")
+    needs_count = len(re.findall(r"\bNEEDS\b", content, flags=re.IGNORECASE))
+    verify_count = len(re.findall(r"\bVERIFY\b", content, flags=re.IGNORECASE))
     ai_count = content.count("🤖")
     deferred_count = len(re.findall(r"\bDEFERRED\b", content, flags=re.IGNORECASE))
+    malformed_deferred_lines = []
+
+    for line in content.splitlines():
+        if re.search(r"\bDEFERRED\b", line, flags=re.IGNORECASE):
+            if not re.search(r"DEFERRED\s*:\s*.*\bOwner\s*:\s*.*", line, flags=re.IGNORECASE):
+                malformed_deferred_lines.append(line)
 
     if q_count > 0 and compliance_mode == "production":
         issues.append(
@@ -410,11 +515,46 @@ def _check_transparency_markers(content: str, compliance_mode: str) -> List[Vali
             )
         )
 
+    if needs_count > 0 and compliance_mode == "production":
+        issues.append(
+            ValidationIssue(
+                "error",
+                f"Found {needs_count} unresolved NEEDS marker(s) in production compliance mode",
+                "transparency-markers",
+            )
+        )
+    elif needs_count > 0:
+        issues.append(
+            ValidationIssue(
+                "warning",
+                f"Found {needs_count} unresolved NEEDS marker(s) in pilot compliance mode",
+                "transparency-markers",
+            )
+        )
+
+    if verify_count > 0:
+        issues.append(
+            ValidationIssue(
+                "warning",
+                f"Found {verify_count} VERIFY marker(s); verify these assumptions against source evidence",
+                "transparency-markers",
+            )
+        )
+
     if deferred_count > 0:
         issues.append(
             ValidationIssue(
                 "warning",
                 f"Found {deferred_count} DEFERRED marker(s); verify deferred content ownership",
+                "transparency-markers",
+            )
+        )
+
+    if malformed_deferred_lines:
+        issues.append(
+            ValidationIssue(
+                "warning",
+                "One or more DEFERRED markers are missing required owner attribution format (expected 'DEFERRED: ... Owner: ...')",
                 "transparency-markers",
             )
         )
@@ -503,7 +643,7 @@ def _check_module_front_matter(content: str, front_matter: Dict[str, str]) -> Li
         )
 
     compliance_mode = front_matter.get("compliance_mode")
-    if compliance_mode and compliance_mode not in {"pilot", "production"}:
+    if compliance_mode and compliance_mode not in VALID_COMPLIANCE_MODES:
         issues.append(
             ValidationIssue(
                 "error",
@@ -600,6 +740,11 @@ def _compute_completeness(required_sections: List[str], issues: List[ValidationI
     return round(max(0.0, min(100.0, base - penalties)), 2)
 
 
+def _is_required_section_present(section_name: str, section_map: Dict[str, int]) -> bool:
+    acceptable = _required_heading_matches(section_name)
+    return any(norm in section_map for norm in acceptable)
+
+
 def _classify_document(
     doc_path: Path,
     workspace_root: Path,
@@ -643,7 +788,7 @@ def _validate_single_file(
     doc_path: Path,
     workspace_root: Path,
     doc_index: Dict[str, Dict[str, Any]],
-    compliance_mode: str,
+    default_compliance_mode: str,
 ) -> ValidationResult:
     text = doc_path.read_text(encoding="utf-8")
 
@@ -656,12 +801,19 @@ def _validate_single_file(
         required = GENERIC_REQUIRED_SECTIONS
 
     issues: List[ValidationIssue] = []
+    front_matter = _extract_front_matter_fields(text)
+    doc_compliance_mode = front_matter.get("compliance_mode", "").strip()
+    effective_compliance_mode = (
+        doc_compliance_mode
+        if doc_compliance_mode in VALID_COMPLIANCE_MODES
+        else default_compliance_mode
+    )
+
     issues.extend(_check_required_sections(text, required))
-    issues.extend(_check_transparency_markers(text, compliance_mode))
+    issues.extend(_check_transparency_markers(text, effective_compliance_mode))
 
     if doc_type == "module":
         issues.extend(_check_akr_generated_header(text))
-        front_matter = _extract_front_matter_fields(text)
         issues.extend(_check_module_front_matter(text, front_matter))
         if info.get("doc_output") == _relative_posix(doc_path, workspace_root):
             if any(field in front_matter for field in DRAFT_ONLY_FRONT_MATTER_FIELDS):
@@ -750,7 +902,7 @@ def _format_preview_output(
         }
         required_sections = MODULE_REQUIRED_SECTIONS if result.doc_type == "module" else DB_REQUIRED_SECTIONS if result.doc_type == "database_object" else GENERIC_REQUIRED_SECTIONS
         section_status = " | ".join(
-            f"{name} {'OK' if _normalize_heading(name) in section_map else 'MISSING'}" for name in required_sections
+            f"{name} {'OK' if _is_required_section_present(name, section_map) else 'MISSING'}" for name in required_sections
         )
         question_count = sum(1 for issue in result.issues if issue.rule == "transparency-markers" and "marker(s)" in issue.message)
         inferred_count = sum(1 for issue in result.issues if issue.rule == "transparency-markers" and "informational" in issue.message)
@@ -809,6 +961,8 @@ def main() -> int:
             preflight_issues.extend(_collect_declared_artifact_warnings(manifest, workspace_root))
             doc_index = _build_doc_index(manifest)
             compliance_mode = manifest.get("project", {}).get("compliance_mode", "pilot")
+            if compliance_mode not in VALID_COMPLIANCE_MODES:
+                compliance_mode = "pilot"
         except Exception as exc:  # noqa: BLE001
             preflight_issues.append(ValidationIssue("error", f"Failed to parse modules.yaml: {exc}", "modules-schema"))
     else:

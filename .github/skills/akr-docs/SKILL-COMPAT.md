@@ -37,8 +37,8 @@ Map condensed charter versions to the SKILL.md version they were validated again
 | Charter File | Charter Version | Compatible SKILL Version | Last Validated | Notes |
 |---|---|---|---|---|
 | backend-service.instructions.md | 1.0 | v1.0.0 | 2026-03-31 | Grounding Rules, Readability Floor, Unknowns Discipline added. Bump charter version when SKILL-COMPAT validator reads this table. |
-| ui-component.instructions.md | 1.0 | v1.0.0 | ❓ | Existence confirmed; compatibility not yet validated. |
-| database.instructions.md | 1.0 | v1.0.0 | ❓ | Existence not confirmed for this charter version; validate in D11-A. |
+| ui-component.instructions.md | 1.0 | v1.0.0 | 2026-04-12 | Charter presence and compatibility validated against current condensed charter mapping. |
+| database.instructions.md | 1.0 | v1.0.0 | 2026-04-12 | Charter presence and compatibility validated; follow-up behavior eval remains tracked under D11-A. |
 
 ## Re-Evaluation Policy
 - Re-run evals after any SKILL.md change.
@@ -51,6 +51,40 @@ Map condensed charter versions to the SKILL.md version they were validated again
 | Enhancement | Description | Trigger Condition | Estimated Effort |
 |---|---|---|---|
 | Dynamic resource-based skill hydration | Replace static condensed charters and benchmark data with runtime resources served by a custom skills provider using @skill.resource patterns | Charter staleness or benchmark drift observed during pilot or multi-repo runs | Medium |
+
+---
+
+# SKILL-COMPAT Addendum: akr-interview
+
+Skill: akr-interview
+Version: v1.0.0
+Last updated: 2026-04-10
+
+## Model Compatibility Matrix
+| Model | Pass Rate | Known Issues | Workaround |
+|---|---|---|---|
+| claude-sonnet-4-6 | TBD | TBD | Use explicit /akr-interview command |
+| gpt-5.4 | TBD | TBD | Use explicit /akr-interview command |
+
+## Invocation Surface Matrix
+| Surface | Supported | Notes |
+|---|---|---|
+| VS Code Copilot Chat | Yes | Primary surface; interactive Q&A loop works as expected |
+| coding-agent | No | Interactive interview loop is not suitable for non-interactive CI agents |
+| custom-agent | Partial | Supported only when the agent surface supports multi-turn user_input_requests |
+
+## Known Gap Tracking
+| Gap ID | Description | Impact | Mitigation | Status |
+|---|---|---|---|---|
+| KIG-001 | @username callout matching is case-insensitive string match only; no GitHub identity resolution | Users must type the exact username used in the document | Document callout convention in onboarding; username is arbitrary label, not GitHub handle | Open |
+| KIG-002 | Mid-session "save" applies edits to the live file; if the session crashes after save, the remaining queue is lost | Partial save may leave document in mixed state | Run /akr-interview again on the same file; it will scan and queue only remaining open items | Open |
+
+## HITL Role Mapping
+| Workflow Stage | Human Role | Expected Action |
+|---|---|---|
+| CALL-* items (callouts) | Tech lead / named colleague | Address developer questions by running /akr-interview --as @username |
+| GEN-* items (open markers) | Module owner / domain SME | Answer targeted questions to complete document sections |
+| Rephrase preview confirmation | Any user | Confirm, edit, skip, or defer proposed rephrased text before document write |
 
 ## HITL Role Mapping (Seed)
 | Workflow Stage | Human Role | Expected Action |
