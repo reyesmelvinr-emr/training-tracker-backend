@@ -1,21 +1,4 @@
 ---
-preview-generated-at: "2026-04-06T10:30:00Z"
-generation-started-at: "2026-04-06T10:29:18Z"
-promoted-at: "2026-04-06T10:31:00Z"
-draft-generation-seconds: 42
-stage-timings:
-  preflight-seconds: 2
-  template-fetch-seconds: 0
-  template-cache: hit
-  charter-fetch-seconds: 0
-  charter-cache: hit
-  source-extraction-seconds: 12
-  assembly-seconds: 27
-  write-seconds: 1
-review-mode: full
-generation-strategy: single-pass
-passes-completed: single
-excluded-sections: []
 businessCapability: EnrollmentManagement
 feature: FN12001_US34021
 layer: API
