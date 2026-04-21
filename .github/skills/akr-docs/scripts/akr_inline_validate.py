@@ -76,6 +76,9 @@ DRAFT_ONLY_FIELDS = frozenset({
     "draft-generation-seconds",
     "stage-timings",
     "review-mode",
+    "generation-strategy",
+    "passes-completed",
+    "excluded-sections",
 })
 
 # Score fields written by /akr-docs score before PR.
@@ -93,14 +96,37 @@ SCORE_FRONT_MATTER_FIELDS = frozenset({
 # Keep in sync with MODULE_REQUIRED_SECTIONS in validate_documentation.py.
 # ---------------------------------------------------------------------------
 BASELINE_REQUIRED_SECTIONS = [
-    "Quick Reference (TL;DR)",
+    "Quick Reference",
     "Module Files",
-    "Operations Map",
-    "Architecture Overview",
+    "API Operations",
+    "Integration Context",
     "Business Rules",
     "Data Operations",
     "Questions & Gaps",
 ]
+
+SECTION_ID_HEADING_ALIASES = {
+    "quick_reference": ["Quick Reference", "Quick Reference (TL;DR)"],
+    "module_files": ["Module Files"],
+    "purpose_scope": ["Purpose and Scope", "Purpose Scope"],
+    "api_operations": ["API Operations", "Operations Map"],
+    "how_it_works": ["How It Works"],
+    "integration_context": ["Integration Context", "Architecture Overview"],
+    "business_rules": ["Business Rules"],
+    "data_operations": ["Data Operations"],
+    "failure_modes": ["Failure Modes", "Failure Modes & Exception Handling"],
+    "questions_gaps": ["Questions & Gaps", "Questions Gaps"],
+}
+
+BASELINE_REQUIRED_SECTION_ALIASES = {
+    "Quick Reference": ["Quick Reference", "Quick Reference (TL;DR)"],
+    "Module Files": ["Module Files"],
+    "API Operations": ["API Operations", "Operations Map"],
+    "Integration Context": ["Integration Context", "Architecture Overview"],
+    "Business Rules": ["Business Rules"],
+    "Data Operations": ["Data Operations"],
+    "Questions & Gaps": ["Questions & Gaps", "Questions Gaps"],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +180,14 @@ def _extract_required_sections_from_directives(content: str) -> Optional[List[st
 def _section_id_to_heading(section_id: str) -> str:
     """Convert snake_case section id to Title Case heading for display."""
     return section_id.replace("_", " ").title()
+
+
+def _section_id_to_heading_aliases(section_id: str) -> List[str]:
+    return SECTION_ID_HEADING_ALIASES.get(section_id, [_section_id_to_heading(section_id)])
+
+
+def _baseline_heading_aliases(section_name: str) -> List[str]:
+    return BASELINE_REQUIRED_SECTION_ALIASES.get(section_name, [section_name])
 
 
 def _normalize_heading(text: str) -> str:
@@ -392,25 +426,24 @@ def _check_required_sections(content: str) -> List[Dict]:
     directive_sections = _extract_required_sections_from_directives(content)
 
     if directive_sections is not None:
-        # Use directive-derived list
         required = directive_sections
         source = "directives"
     else:
-        # Fallback to baseline list — convert to normalized form
-        required = [_normalize_heading(s) for s in BASELINE_REQUIRED_SECTIONS]
+        required = BASELINE_REQUIRED_SECTIONS
         source = "baseline"
 
     headings = _extract_h2_headings(content)
     issues = []
 
     for section in required:
-        norm = _normalize_heading(section) if source == "directives" else section
-        if norm not in headings:
-            readable = (
-                _section_id_to_heading(section)
-                if source == "directives"
-                else section
-            )
+        aliases = (
+            _section_id_to_heading_aliases(section)
+            if source == "directives"
+            else _baseline_heading_aliases(section)
+        )
+        normalized_aliases = [_normalize_heading(alias) for alias in aliases]
+        if not any(norm in headings for norm in normalized_aliases):
+            readable = aliases[0]
             issues.append({
                 "severity": "error",
                 "rule": "required-sections",
@@ -425,8 +458,16 @@ def _check_transparency_markers(content: str, compliance_mode: str) -> List[Dict
     issues = []
 
     q_count = content.count("❓")
+    needs_count = len(re.findall(r"\bNEEDS\b", content, re.IGNORECASE))
+    verify_count = len(re.findall(r"\bVERIFY\b", content, re.IGNORECASE))
     bot_count = content.count("🤖")
     deferred_count = len(re.findall(r"\bDEFERRED\b", content, re.IGNORECASE))
+    malformed_deferred_lines = []
+
+    for line in content.splitlines():
+        if re.search(r"\bDEFERRED\b", line, re.IGNORECASE):
+            if not re.search(r"DEFERRED\s*:\s*.*\bOwner\s*:\s*.*", line, re.IGNORECASE):
+                malformed_deferred_lines.append(line)
 
     if q_count > 0:
         severity = "error" if compliance_mode == "production" else "warning"
@@ -441,6 +482,27 @@ def _check_transparency_markers(content: str, compliance_mode: str) -> List[Dict
             "line": None,
         })
 
+    if needs_count > 0:
+        severity = "error" if compliance_mode == "production" else "warning"
+        issues.append({
+            "severity": severity,
+            "rule": "transparency-markers",
+            "message": (
+                f"Found {needs_count} unresolved NEEDS marker(s). "
+                + ("Blocking in production mode." if compliance_mode == "production"
+                   else "Resolve before graduating to production mode.")
+            ),
+            "line": None,
+        })
+
+    if verify_count > 0:
+        issues.append({
+            "severity": "warning",
+            "rule": "transparency-markers",
+            "message": f"Found {verify_count} VERIFY marker(s). Confirm these assumptions against source evidence.",
+            "line": None,
+        })
+
     if deferred_count > 0:
         issues.append({
             "severity": "warning",
@@ -448,6 +510,17 @@ def _check_transparency_markers(content: str, compliance_mode: str) -> List[Dict
             "message": (
                 f"Found {deferred_count} DEFERRED marker(s). "
                 "Verify each has an owner and follow-up trigger."
+            ),
+            "line": None,
+        })
+
+    if malformed_deferred_lines:
+        issues.append({
+            "severity": "warning",
+            "rule": "transparency-markers",
+            "message": (
+                "One or more DEFERRED markers are missing required owner attribution format "
+                "(expected 'DEFERRED: ... Owner: ...')."
             ),
             "line": None,
         })
@@ -504,6 +577,14 @@ def validate_file(
     issues.extend(_check_metadata_canonical_format(content))
     issues.extend(_check_required_sections(content))
     issues.extend(_check_transparency_markers(content, effective_compliance))
+
+    if "semantic-score" not in front_matter:
+        issues.append({
+            "severity": "info",
+            "rule": "semantic-score-absent",
+            "message": "Semantic score not present. Run '/akr-docs score [ModuleName]' before opening PR to enable combined scoring.",
+            "line": None,
+        })
 
     error_count = sum(1 for i in issues if i["severity"] == "error")
     warning_count = sum(1 for i in issues if i["severity"] == "warning")
